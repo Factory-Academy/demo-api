@@ -3,18 +3,19 @@ from datetime import datetime
 from typing import Optional
 
 
-class WidgetBase(BaseModel):
-    name: str
-    item_id: int
+class ServiceAppointmentBase(BaseModel):
+    service_type: str
+    vehicle_id: int
     priority: int = 0
     notes: Optional[str] = None
+    scheduled_date: Optional[str] = None
 
 
-class WidgetCreate(WidgetBase):
+class ServiceAppointmentCreate(ServiceAppointmentBase):
     pass
 
 
-class Widget(WidgetBase):
+class ServiceAppointment(ServiceAppointmentBase):
     id: int
     created_at: datetime
     updated_at: datetime

@@ -10,15 +10,19 @@ def test_health_check():
     assert response.json() == {"status": "healthy"}
 
 
-def test_list_items_empty():
-    response = client.get("/items/")
+def test_list_vehicles_empty():
+    response = client.get("/vehicles/")
     assert response.status_code == 200
 
 
-def test_create_item():
+def test_create_vehicle():
     response = client.post(
-        "/items/",
-        json={"name": "Test Item", "description": "A test item"},
+        "/vehicles/",
+        json={
+            "vin": "1FVNY5Y90HP312345",
+            "model_name": "R1T",
+            "model_year": 2025,
+        },
     )
     assert response.status_code == 201
-    assert response.json()["name"] == "Test Item"
+    assert response.json()["model_name"] == "R1T"
