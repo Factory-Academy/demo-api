@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "jira": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/sse",
+      "note": "Connects Droid to Rivian's Jira instance for ticket context"
+    },
+    "gitlab": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+      "env": {
+        "GITLAB_TOKEN": "${GITLAB_TOKEN}",
+        "GITLAB_API_URL": "https://gitlab.com/api/v4"
+      },
+      "note": "GitLab MCP for Rivian's source control integration"
+    }
+  }
+}
