@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
+AGE_BONUS_THRESHOLD_DAYS = 30
+
 
 class ItemService:
     def __init__(self, db):
@@ -13,7 +15,7 @@ class ItemService:
         if item.get("is_critical"):
             base_score += 50
 
-        if age_days > 30:
+        if age_days > AGE_BONUS_THRESHOLD_DAYS:
             base_score += age_days * 0.5
 
         if base_score >= 80:
