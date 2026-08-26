@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any
 
 
 class ItemService:
@@ -24,7 +24,8 @@ class ItemService:
             return "medium"
         return "low"
 
-    def validate_item(self, data: dict) -> tuple:
+    def validate_item(self, data: dict[str, Any]) -> tuple[bool, list[str]]:
+        """Validate incoming item payload fields and collect user-facing errors."""
         errors = []
         if not data.get("name") or len(data["name"].strip()) == 0:
             errors.append("Name is required")
