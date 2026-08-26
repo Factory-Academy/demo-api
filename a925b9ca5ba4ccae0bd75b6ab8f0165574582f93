@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.2",
+  "base_commit_sha": "a925b9ca5ba4ccae0bd75b6ab8f0165574582f93",
+  "prompts": {
+    "306a2328a9fb52c2": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "c72d6bb0-17c7-4ba4-aab9-84a256a6e913",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "academy-eng-2",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
