@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.widget import Widget, WidgetCreate
+from src.utils import ttl_cache
 
 router = APIRouter()
 
@@ -14,6 +15,7 @@ async def list_widgets():
 
 
 @router.get("/{widget_id}", response_model=Widget)
+@ttl_cache(ttl_seconds=2, maxsize=256)
 async def get_widget(widget_id: int):
     for widget in widgets_db:
         if widget["id"] == widget_id:
