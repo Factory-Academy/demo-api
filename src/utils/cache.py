@@ -83,3 +83,30 @@ def ttl_cache(ttl_seconds: float, maxsize: int = 128) -> Callable:
         return sync_wrapper
 
     return decorator
+
+
+def retry(
+    attempts: int = 3,
+    exceptions: tuple[type[BaseException], ...] = (Exception,),
+    delay_seconds: float = 0.0,
+) -> Callable:
+    if attempts <= 0:
+        raise ValueError("attempts must be greater than 0")
+    if delay_seconds < 0:
+        raise ValueError("delay_seconds must be greater than or equal to 0")
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(attempts):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions:
+                    if attempt == attempts - 1:
+                        raise
+                    if delay_seconds > 0:
+                        time.sleep(delay_seconds)
+
+        return wrapper
+
+    return decorator

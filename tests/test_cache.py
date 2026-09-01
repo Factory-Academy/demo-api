@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from src.main import app
 from src.routes import widget_routes
-from src.utils.cache import ttl_cache
+from src.utils.cache import retry, ttl_cache
 
 client = TestClient(app)
 
@@ -87,3 +87,32 @@ def test_get_widget_route_uses_cache():
     second = client.get("/widgets/1")
     assert second.status_code == 200
     assert second.json()["name"] == "Original"
+
+
+def test_retry_retries_until_success():
+    calls = {"count": 0}
+
+    @retry(attempts=3)
+    def sometimes_fails():
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise ValueError("temporary")
+        return "ok"
+
+    assert sometimes_fails() == "ok"
+    assert calls["count"] == 3
+
+
+def test_retry_raises_after_max_attempts():
+    calls = {"count": 0}
+
+    @retry(attempts=2, exceptions=(ValueError,))
+    def always_fails():
+        calls["count"] += 1
+        raise ValueError("still failing")
+
+    try:
+        always_fails()
+        assert False, "Expected ValueError"
+    except ValueError:
+        assert calls["count"] == 2
