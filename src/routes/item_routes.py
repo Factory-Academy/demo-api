@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
+from src.feature_flags import is_feature_enabled
 from src.models.item import Item, ItemCreate, ItemUpdate
 
 router = APIRouter()
@@ -26,8 +27,12 @@ async def create_item(item: ItemCreate):
     global next_id
     from datetime import datetime
 
+    payload = item.model_dump()
+    if is_feature_enabled("ITEMS_FORCE_INACTIVE_STATUS"):
+        payload["status"] = "inactive"
+
     db_item = {
-        **item.model_dump(),
+        **payload,
         "id": next_id,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
