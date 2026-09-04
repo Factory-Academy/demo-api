@@ -36,3 +36,12 @@ def test_slugify_empty_string():
 
 def test_slugify_only_special_characters():
     assert slugify("@#$%") == ""
+
+
+def test_slugify_none_input():
+    assert slugify(None) == ""
+
+
+def test_slugify_whitespace_only():
+    assert slugify("   ") == ""
+    assert slugify("\t\n") == ""

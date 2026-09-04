@@ -12,6 +12,10 @@ def slugify(text: str) -> str:
         A lowercase string with spaces/underscores replaced by hyphens,
         special characters removed, and no duplicate hyphens
     """
+    # Handle None or empty input
+    if not text:
+        return ""
+    
     # Convert to lowercase
     slug = text.lower()
 
