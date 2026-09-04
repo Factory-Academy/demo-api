@@ -1,6 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.db_helpers import (
+    create_with_timestamps,
+    delete_by_id,
+    find_by_id,
+    update_by_id,
+)
 
 router = APIRouter()
 
@@ -15,45 +21,23 @@ async def list_items():
 
 @router.get("/{item_id}", response_model=Item)
 async def get_item(item_id: int):
-    for item in items_db:
-        if item["id"] == item_id:
-            return item
-    raise HTTPException(status_code=404, detail="Item not found")
+    return find_by_id(items_db, item_id, "Item")
 
 
 @router.post("/", response_model=Item, status_code=201)
 async def create_item(item: ItemCreate):
     global next_id
-    from datetime import datetime
-
-    db_item = {
-        **item.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-    items_db.append(db_item)
-    next_id += 1
+    db_item, next_id = create_with_timestamps(items_db, item.model_dump(), next_id)
     return db_item
 
 
 @router.put("/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: ItemUpdate):
-    from datetime import datetime
-
-    for i, existing in enumerate(items_db):
-        if existing["id"] == item_id:
-            update_data = item.model_dump(exclude_unset=True)
-            update_data["updated_at"] = datetime.utcnow()
-            items_db[i] = {**existing, **update_data}
-            return items_db[i]
-    raise HTTPException(status_code=404, detail="Item not found")
+    update_data = item.model_dump(exclude_unset=True)
+    return update_by_id(items_db, item_id, update_data, "Item")
 
 
 @router.delete("/{item_id}")
 async def delete_item(item_id: int):
-    for i, item in enumerate(items_db):
-        if item["id"] == item_id:
-            items_db.pop(i)
-            return {"status": "deleted"}
-    raise HTTPException(status_code=404, detail="Item not found")
+    delete_by_id(items_db, item_id, "Item")
+    return {"status": "deleted"}

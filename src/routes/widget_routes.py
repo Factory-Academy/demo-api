@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import List
 from src.models.widget import Widget, WidgetCreate
+from src.utils.db_helpers import create_with_timestamps, find_by_id
 
 router = APIRouter()
 
@@ -15,23 +16,13 @@ async def list_widgets():
 
 @router.get("/{widget_id}", response_model=Widget)
 async def get_widget(widget_id: int):
-    for widget in widgets_db:
-        if widget["id"] == widget_id:
-            return widget
-    raise HTTPException(status_code=404, detail="Widget not found")
+    return find_by_id(widgets_db, widget_id, "Widget")
 
 
 @router.post("/", response_model=Widget, status_code=201)
 async def create_widget(widget: WidgetCreate):
     global next_id
-    from datetime import datetime
-
-    db_widget = {
-        **widget.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-    widgets_db.append(db_widget)
-    next_id += 1
+    db_widget, next_id = create_with_timestamps(
+        widgets_db, widget.model_dump(), next_id
+    )
     return db_widget
