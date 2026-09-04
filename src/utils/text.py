@@ -17,6 +17,9 @@ def slugify(text: str) -> str:
         >>> slugify("Python 3.11 Release!")
         'python-3-11-release'
     """
+    if not text:
+        return ""
+    
     # Convert to lowercase
     slug = text.lower()
     

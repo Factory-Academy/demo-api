@@ -31,3 +31,15 @@ def test_slugify_only_special_characters():
 
 def test_slugify_mixed_case():
     assert slugify("CamelCase Text") == "camelcase-text"
+
+
+def test_slugify_consecutive_special_chars():
+    assert slugify("Hello -- World!!") == "hello-world"
+
+
+def test_slugify_leading_trailing_special_chars():
+    assert slugify("!!!Hello World!!!") == "hello-world"
+
+
+def test_slugify_mixed_separators():
+    assert slugify("Hello_World-Test") == "hello-world-test"
