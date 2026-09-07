@@ -1,20 +1,37 @@
 from datetime import datetime
 from typing import Optional
 
+from src.clients.status_notifier import NotifierError
+from src.utils.resilience import (
+    BackoffPolicy,
+    ResilienceError,
+    RetryError,
+    retry_with_backoff,
+)
+
 
 def retry(func, attempts: int = 3, exceptions: tuple = (Exception,)):
-    last_error = None
-    for _ in range(attempts):
-        try:
-            return func()
-        except exceptions as error:
-            last_error = error
-    raise last_error
+    """Retry ``func`` up to ``attempts`` times, re-raising the last error.
+
+    Thin backwards-compatible wrapper over ``retry_with_backoff`` with no delay
+    between attempts, preserved so existing callers keep working while sharing
+    the hardened retry implementation.
+    """
+    try:
+        return retry_with_backoff(
+            func,
+            retries=attempts - 1,
+            retry_on=exceptions,
+            policy=BackoffPolicy(base_delay=0, max_delay=0, jitter=False),
+        )
+    except RetryError as exc:
+        raise exc.last_exception
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db, notifier=None):
         self.db = db
+        self.notifier = notifier
 
     def calculate_priority(self, item: dict) -> str:
         age_days = (datetime.utcnow() - item["created_at"]).days
@@ -52,7 +69,7 @@ class ItemService:
     def batch_update_status(
         self, ids: list, new_status: str, updated_by: str
     ) -> dict:
-        results = {"updated": [], "failed": [], "skipped": []}
+        results = {"updated": [], "failed": [], "skipped": [], "notify_failed": []}
         for id in ids:
             record = self.db.get(id)
             if record is None:
@@ -66,4 +83,17 @@ class ItemService:
             record["updated_at"] = datetime.utcnow()
             self.db.save(record)
             results["updated"].append(id)
+            self._notify(id, new_status, updated_by, results)
         return results
+
+    def _notify(self, id, new_status: str, updated_by: str, results: dict) -> None:
+        # Downstream notification is best-effort: the local update has already
+        # committed, so a notifier outage (circuit open, retries exhausted, or
+        # a rejected request) must not fail the batch. Failures are reported
+        # separately so callers can reconcile later.
+        if self.notifier is None:
+            return
+        try:
+            self.notifier.notify_status_change(id, new_status, updated_by=updated_by)
+        except (ResilienceError, NotifierError) as exc:
+            results["notify_failed"].append({"id": id, "reason": str(exc)})
