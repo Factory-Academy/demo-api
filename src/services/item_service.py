@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
+from src.utils.rate_limiter import RateLimiter
+
 
 def retry(func, attempts: int = 3, exceptions: tuple = (Exception,)):
     last_error = None
@@ -13,8 +15,11 @@ def retry(func, attempts: int = 3, exceptions: tuple = (Exception,)):
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db, rate_limiter: Optional[RateLimiter] = None):
         self.db = db
+        # Optional per-user throttle for expensive batch operations. When
+        # omitted the service behaves exactly as before (no limiting).
+        self.rate_limiter = rate_limiter
 
     def calculate_priority(self, item: dict) -> str:
         age_days = (datetime.utcnow() - item["created_at"]).days
@@ -52,6 +57,11 @@ class ItemService:
     def batch_update_status(
         self, ids: list, new_status: str, updated_by: str
     ) -> dict:
+        # Throttle per acting user so one caller cannot monopolize batch
+        # updates. One token is charged per record actually touched.
+        if self.rate_limiter is not None and ids:
+            self.rate_limiter.check(updated_by, tokens=len(ids))
+
         results = {"updated": [], "failed": [], "skipped": []}
         for id in ids:
             record = self.db.get(id)
