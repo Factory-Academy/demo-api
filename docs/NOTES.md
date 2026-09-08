@@ -38,13 +38,25 @@ The service layer is where domain expertise lives, making it a natural spot for:
 
 No external service calls yet — those get added during customization if the prospect's stack includes third-party integrations.
 
-## Rate Limiting (`src/utils/rate_limiter.py`)
+## Rate Limiting (`src/utils/rate_limiter/`)
 
 The rate limiter throttles expensive or abuse-prone operations using the
 **token-bucket** algorithm. A bucket holds up to `capacity` tokens and refills
 continuously at `refill_rate` tokens per second. Each request spends one or
 more tokens; when the bucket is short, the request is rejected. This permits
 short bursts up to `capacity` while enforcing a steady long-run rate.
+
+### Package layout
+
+The limiter is a small package of focused modules; the public names are
+re-exported from the package root, so `from src.utils.rate_limiter import
+RateLimiter` still works.
+
+- `validation.py` — shared numeric guardrails (finite, positive, in-range) and
+  the `TOKEN_EPSILON` tolerance constant.
+- `errors.py` — the `RateLimitExceeded` exception.
+- `bucket.py` — the single-bucket `TokenBucket`.
+- `limiter.py` — the keyed `RateLimiter` registry.
 
 ### API
 
@@ -67,6 +79,16 @@ short bursts up to `capacity` while enforcing a steady long-run rate.
 
 - Invalid config (`capacity <= 0`, `refill_rate < 0`) and invalid requests
   (`tokens <= 0`) raise `ValueError`.
+- **Non-finite numbers** (`NaN`, `+/-inf`) are rejected wherever a rate or a
+  token count is accepted. `NaN` compares `False` against every threshold, so a
+  plain `capacity <= 0` guard would let it through and silently corrupt a
+  bucket's balance; validation now catches it up front. The checks live in one
+  place (`validation.py`) so every entry point shares the same rules.
+- **Floating-point tolerance**: token balances are refilled continuously as
+  floats, so repeated fractional arithmetic can leave a value a hair below a
+  whole number. Comparisons allow a small `TOKEN_EPSILON` of slack so an exact
+  request is never rejected by rounding dust, and consumption clamps at zero so
+  the balance never underflows to a tiny negative.
 - Requests larger than `capacity` are rejected with `retry_after=None` since
   they can never succeed.
 - A `refill_rate` of 0 acts as a fixed, non-renewing quota.

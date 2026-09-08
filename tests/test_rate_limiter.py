@@ -32,7 +32,10 @@ class TestTokenBucketConstruction:
 
     def test_respects_initial_tokens(self):
         """Explicit initial_tokens should set the starting balance."""
-        bucket = TokenBucket(capacity=5, refill_rate=1, initial_tokens=2)
+        # Inject a frozen clock so no wall-clock time refills the bucket
+        # between construction and the read, keeping the assertion exact.
+        clock = FakeClock()
+        bucket = TokenBucket(capacity=5, refill_rate=1, initial_tokens=2, time_func=clock)
         assert bucket.available_tokens == 2
 
     def test_initial_tokens_clamped_to_capacity(self):
@@ -42,7 +45,8 @@ class TestTokenBucketConstruction:
 
     def test_initial_tokens_clamped_to_zero(self):
         """Negative initial_tokens should clamp up to zero."""
-        bucket = TokenBucket(capacity=5, refill_rate=1, initial_tokens=-3)
+        clock = FakeClock()
+        bucket = TokenBucket(capacity=5, refill_rate=1, initial_tokens=-3, time_func=clock)
         assert bucket.available_tokens == 0
 
     def test_zero_capacity_rejected(self):
@@ -64,6 +68,24 @@ class TestTokenBucketConstruction:
         """A zero refill rate is a valid fixed quota."""
         bucket = TokenBucket(capacity=3, refill_rate=0)
         assert bucket.available_tokens == 3
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_capacity_rejected(self, bad):
+        """NaN/inf capacity must be rejected instead of poisoning the bucket."""
+        with pytest.raises(ValueError):
+            TokenBucket(capacity=bad, refill_rate=1)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_refill_rate_rejected(self, bad):
+        """NaN/inf refill rate must be rejected."""
+        with pytest.raises(ValueError):
+            TokenBucket(capacity=1, refill_rate=bad)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_initial_tokens_rejected(self, bad):
+        """NaN/inf initial_tokens must be rejected rather than silently clamped."""
+        with pytest.raises(ValueError):
+            TokenBucket(capacity=5, refill_rate=1, initial_tokens=bad)
 
 
 class TestTokenBucketConsume:
@@ -135,6 +157,23 @@ class TestTokenBucketConsume:
         bucket = TokenBucket(capacity=1, refill_rate=0)
         with pytest.raises(ValueError):
             bucket.consume(0)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_try_consume_non_finite_rejected(self, bad):
+        """A non-finite token request is invalid."""
+        bucket = TokenBucket(capacity=5, refill_rate=0)
+        with pytest.raises(ValueError):
+            bucket.try_consume(bad)
+
+    def test_consume_does_not_leave_negative_residue(self):
+        """Float arithmetic must never drive the balance below zero."""
+        clock = FakeClock()
+        bucket = TokenBucket(capacity=1, refill_rate=1, initial_tokens=0.3, time_func=clock)
+        # Refill to a value that is not exactly representable, then drain it.
+        clock.advance(0.7)
+        assert bucket.try_consume(1) is True
+        assert bucket.available_tokens >= 0.0
+        assert bucket.available_tokens < TokenBucket(1, 1).capacity
 
 
 class TestTokenBucketRefill:
@@ -270,6 +309,20 @@ class TestRateLimiter:
         """Negative refill rate should be rejected."""
         with pytest.raises(ValueError):
             RateLimiter(capacity=1, refill_rate=-1)
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_construction_rejects_non_finite(self, bad):
+        """Non-finite capacity or refill rate should be rejected."""
+        with pytest.raises(ValueError):
+            RateLimiter(capacity=bad, refill_rate=1)
+        with pytest.raises(ValueError):
+            RateLimiter(capacity=1, refill_rate=bad)
+
+    def test_allow_non_finite_tokens_rejected(self):
+        """A non-finite token request through the registry is invalid."""
+        limiter = RateLimiter(capacity=5, refill_rate=0)
+        with pytest.raises(ValueError):
+            limiter.allow("user-a", tokens=float("inf"))
 
     def test_allow_consumes_per_key(self):
         """allow should return True until a key's bucket is drained."""
