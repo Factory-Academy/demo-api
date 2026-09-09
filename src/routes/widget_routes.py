@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.widget import Widget, WidgetCreate
+from src.utils.crud_helpers import InMemoryStore
 
 router = APIRouter()
 
 widgets_db: List[dict] = []
-next_id = 1
+store = InMemoryStore(widgets_db)
 
 
 @router.get("/", response_model=List[Widget])
@@ -15,23 +16,13 @@ async def list_widgets():
 
 @router.get("/{widget_id}", response_model=Widget)
 async def get_widget(widget_id: int):
-    for widget in widgets_db:
-        if widget["id"] == widget_id:
-            return widget
-    raise HTTPException(status_code=404, detail="Widget not found")
+    widget = store.get_by_id(widget_id)
+    if widget is None:
+        raise HTTPException(status_code=404, detail="Widget not found")
+    return widget
 
 
 @router.post("/", response_model=Widget, status_code=201)
 async def create_widget(widget: WidgetCreate):
-    global next_id
-    from datetime import datetime
-
-    db_widget = {
-        **widget.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-    widgets_db.append(db_widget)
-    next_id += 1
+    db_widget = store.create(widget.model_dump())
     return db_widget
