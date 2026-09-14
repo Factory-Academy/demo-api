@@ -44,3 +44,11 @@ def test_retry_does_not_retry_unlisted_exception_types():
         )
 
     assert attempts["count"] == 1
+
+
+def test_retry_rejects_empty_retry_exception_tuple():
+    with pytest.raises(
+        ValueError,
+        match="retry_exceptions must contain at least one exception type",
+    ):
+        retry(lambda: "ok", retry_exceptions=())

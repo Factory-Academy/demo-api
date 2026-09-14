@@ -11,6 +11,8 @@ def retry(
 ) -> T:
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
+    if not retry_exceptions:
+        raise ValueError("retry_exceptions must contain at least one exception type")
 
     last_error = None
     for _ in range(max_attempts):
