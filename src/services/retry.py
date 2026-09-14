@@ -3,7 +3,12 @@ from typing import Callable, TypeVar
 T = TypeVar("T")
 
 
-def retry(func: Callable[[], T], max_attempts: int = 3) -> T:
+def retry(
+    func: Callable[[], T],
+    max_attempts: int = 3,
+    *,
+    retry_exceptions: tuple[type[Exception], ...] = (Exception,),
+) -> T:
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
 
@@ -11,7 +16,7 @@ def retry(func: Callable[[], T], max_attempts: int = 3) -> T:
     for _ in range(max_attempts):
         try:
             return func()
-        except Exception as error:  # noqa: BLE001
+        except retry_exceptions as error:
             last_error = error
 
     raise last_error

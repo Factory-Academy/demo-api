@@ -27,3 +27,20 @@ def test_retry_raises_after_max_attempts():
         retry(always_fails, max_attempts=2)
 
     assert attempts["count"] == 2
+
+
+def test_retry_does_not_retry_unlisted_exception_types():
+    attempts = {"count": 0}
+
+    def fails_with_value_error():
+        attempts["count"] += 1
+        raise ValueError("bad input")
+
+    with pytest.raises(ValueError, match="bad input"):
+        retry(
+            fails_with_value_error,
+            max_attempts=3,
+            retry_exceptions=(RuntimeError,),
+        )
+
+    assert attempts["count"] == 1
