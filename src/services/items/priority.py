@@ -9,6 +9,8 @@ need it (for example, sorting a queue).
 from datetime import datetime
 from typing import Optional
 
+from src.services.items.coerce import as_number
+
 # Ordered from highest to lowest. The first threshold whose minimum score is met
 # wins, so this list must stay sorted by ``min_score`` descending.
 PRIORITY_THRESHOLDS = (
@@ -29,12 +31,19 @@ def priority_score(item: dict, *, now: Optional[datetime] = None) -> float:
 
     ``now`` is injectable so tests can pin the clock; production callers leave it
     ``None`` and get ``datetime.utcnow()``, matching the original behavior.
+
+    Urgency is read defensively: a missing, ``None``, or non-numeric value
+    contributes nothing, and a negative value is clamped to zero.
     """
     if now is None:
         now = datetime.utcnow()
 
     age_days = (now - item["created_at"]).days
-    score = item.get("urgency", 0) * URGENCY_WEIGHT
+    # Clamping urgency to a non-negative number keeps the score in a
+    # non-negative domain, which is what keeps the ``label_for_score`` floor
+    # (below) genuinely unreachable rather than merely unlikely.
+    urgency = max(as_number(item.get("urgency"), 0), 0)
+    score = urgency * URGENCY_WEIGHT
 
     if item.get("is_critical"):
         score += CRITICAL_BONUS

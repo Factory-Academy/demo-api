@@ -45,6 +45,21 @@ class TestQuantity:
         assert ok is False
         assert "Quantity cannot be negative" in errors
 
+    def test_none_quantity_is_treated_as_unset(self):
+        ok, errors = validate_item({"name": "x", "quantity": None}, now=NOW)
+        assert ok is True
+        assert errors == []
+
+    def test_non_numeric_quantity_rejected(self):
+        ok, errors = validate_item({"name": "x", "quantity": "lots"}, now=NOW)
+        assert ok is False
+        assert "Quantity must be a number" in errors
+
+    def test_boolean_quantity_rejected(self):
+        ok, errors = validate_item({"name": "x", "quantity": True}, now=NOW)
+        assert ok is False
+        assert "Quantity must be a number" in errors
+
 
 class TestDueDate:
     def test_future_due_date_is_allowed(self):
@@ -63,6 +78,15 @@ class TestDueDate:
     def test_invalid_date_format_rejected(self):
         ok, errors = validate_item(
             {"name": "x", "due_date": "not-a-date"}, now=NOW
+        )
+        assert ok is False
+        assert "Invalid date format" in errors
+
+    def test_non_string_due_date_rejected(self):
+        # A non-string value reaches ``fromisoformat`` and raises TypeError,
+        # which must surface as the same "Invalid date format" error.
+        ok, errors = validate_item(
+            {"name": "x", "due_date": 20260101}, now=NOW
         )
         assert ok is False
         assert "Invalid date format" in errors

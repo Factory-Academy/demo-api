@@ -50,6 +50,29 @@ class TestPriorityScore:
         assert priority_score(item) == 40
 
 
+class TestPriorityScoreEdgeCases:
+    def test_none_urgency_treated_as_zero(self):
+        assert priority_score(_item(urgency=None), now=NOW) == 0
+
+    def test_non_numeric_urgency_treated_as_zero(self):
+        assert priority_score(_item(urgency="high"), now=NOW) == 0
+
+    def test_boolean_urgency_treated_as_zero(self):
+        # bool subclasses int, but a boolean urgency is a payload bug, not 1.
+        assert priority_score(_item(urgency=True), now=NOW) == 0
+
+    def test_negative_urgency_is_clamped_to_zero(self):
+        assert priority_score(_item(urgency=-5), now=NOW) == 0
+
+    def test_none_critical_flag_adds_nothing(self):
+        assert priority_score(_item(urgency=1, is_critical=None), now=NOW) == 10
+
+    def test_malformed_urgency_still_earns_stale_age_bonus(self):
+        # Bad urgency contributes 0, but a stale item still escalates on age.
+        score = priority_score(_item(created_days_ago=40, urgency=None), now=NOW)
+        assert score == 20  # 40 * 0.5
+
+
 class TestLabelForScore:
     @pytest.mark.parametrize(
         "score, expected",
@@ -93,3 +116,7 @@ class TestCalculatePriority:
     def test_missing_created_at_raises(self):
         with pytest.raises(KeyError):
             calculate_priority({"urgency": 1}, now=NOW)
+
+    def test_negative_urgency_never_drops_below_low(self):
+        # A clamped-to-zero score maps to the lowest label, not off the scale.
+        assert calculate_priority(_item(urgency=-5), now=NOW) == "low"

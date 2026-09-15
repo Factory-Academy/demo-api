@@ -57,15 +57,39 @@ One deliberate, non-observable refinement: the batch now pins a single
 timestamp per run, so every record updated in one call shares an `updated_at`
 instead of drifting microseconds apart. The result dict is unaffected.
 
+## Edge-case hardening (review follow-up)
+
+The first cut of the pure core assumed well-formed payloads, so a malformed
+optional field raised an unhandled `TypeError` from deep inside a rule instead
+of being handled where the rule lives. That was tightened:
+
+- **Shared coercion** — `items/coerce.py` adds `is_number` and `as_number`, the
+  single definition of "a usable number". `bool` is treated as non-numeric on
+  purpose: a boolean in a numeric field is a payload bug, not `1`.
+- **Priority** — `priority_score` now reads urgency through `as_number`, so a
+  missing, `None`, or non-numeric urgency contributes `0`, and a negative
+  urgency is clamped to `0`. Clamping keeps the score non-negative, which is
+  what makes the `label_for_score` floor genuinely unreachable rather than just
+  unlikely.
+- **Validation** — a `None` quantity is treated as unset (the historical `0`
+  default) instead of crashing on `None < 0`; a non-numeric quantity now returns
+  the explicit `"Quantity must be a number"`. Due-date parsing catches
+  `TypeError` alongside `ValueError`, so a non-string date reports
+  `"Invalid date format"` rather than propagating.
+
+These are defensive refinements only: every previously valid payload keeps its
+old result and the `(is_valid, errors)` / label shapes are unchanged.
+
 ## Testing
 
 Each pure module has its own focused suite, and the adapter is tested against a
 small in-memory `FakeDB`:
 
 - `tests/test_item_priority.py` — scoring math, threshold boundaries, stale-age
-  escalation, future-dated items, missing keys.
+  escalation, future-dated items, missing keys, and malformed/negative urgency.
 - `tests/test_item_validation.py` — name/quantity/due-date rules, error
-  accumulation, injected vs. default clock.
+  accumulation, injected vs. default clock, and malformed quantity/date types.
 - `tests/test_item_batch.py` — classification outcomes and field building.
+- `tests/test_item_coerce.py` — the numeric coercion helpers.
 - `tests/test_item_service.py` — adapter wiring: update/skip/fail partitioning,
   mixed batches, empty input, shared timestamp, in-place mutation.

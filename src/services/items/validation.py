@@ -8,6 +8,8 @@ that the rest of the codebase already expects.
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from src.services.items.coerce import is_number
+
 
 def _validate_name(data: dict) -> Optional[str]:
     name = data.get("name")
@@ -17,7 +19,14 @@ def _validate_name(data: dict) -> Optional[str]:
 
 
 def _validate_quantity(data: dict) -> Optional[str]:
-    if data.get("quantity", 0) < 0:
+    quantity = data.get("quantity")
+    if quantity is None:
+        # Missing or explicitly null: treat as unset (the historical default of
+        # 0) rather than comparing ``None < 0`` and raising ``TypeError``.
+        return None
+    if not is_number(quantity):
+        return "Quantity must be a number"
+    if quantity < 0:
         return "Quantity cannot be negative"
     return None
 
@@ -28,7 +37,9 @@ def _validate_due_date(data: dict, now: datetime) -> Optional[str]:
         return None
     try:
         due = datetime.fromisoformat(raw)
-    except ValueError:
+    except (TypeError, ValueError):
+        # ValueError: a malformed date string. TypeError: a non-string value
+        # (e.g. a number) reached ``fromisoformat``. Both are bad input.
         return "Invalid date format"
     if due < now:
         return "Due date cannot be in the past"
