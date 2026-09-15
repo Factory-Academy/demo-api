@@ -1,5 +1,6 @@
 import re
 
+
 def slugify(text: str) -> str:
     """
     Convert a string to a URL-friendly slug.
@@ -9,3 +10,10 @@ def slugify(text: str) -> str:
     text = re.sub(r"[\s_-]+", "-", text)
     text = text.strip("-")
     return text
+
+
+def normalize_whitespace(text: str) -> str:
+    """
+    Collapse repeated whitespace and trim leading/trailing spaces.
+    """
+    return " ".join(text.split())
