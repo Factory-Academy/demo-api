@@ -13,6 +13,34 @@ def test_health_check():
 def test_list_items_empty():
     response = client.get("/items/")
     assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
+def test_list_items_pagination():
+    # Create 15 items
+    for i in range(15):
+        client.post(
+            "/items/",
+            json={"name": f"Item {i}", "description": "Test description"},
+        )
+
+    # Test first page
+    response = client.get("/items/?offset=0&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 10
+    assert data["total"] >= 15
+    assert data["offset"] == 0
+    assert data["limit"] == 10
+
+    # Test second page
+    response = client.get("/items/?offset=10&limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 5
+    assert data["offset"] == 10
 
 
 def test_create_item():
