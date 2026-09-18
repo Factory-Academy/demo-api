@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.pagination import Page, paginate
 
 router = APIRouter()
 
@@ -8,9 +9,12 @@ items_db: List[dict] = []
 next_id = 1
 
 
-@router.get("/", response_model=List[Item])
-async def list_items():
-    return items_db
+@router.get("/", response_model=Page[Item])
+async def list_items(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100)
+):
+    return paginate(items_db, offset=offset, limit=limit)
 
 
 @router.get("/{item_id}", response_model=Item)
