@@ -1,3 +1,5 @@
+import time
+from datetime import datetime
 from fastapi.testclient import TestClient
 from src.main import app
 from src.services.item_service import ItemService
@@ -57,3 +59,42 @@ def test_calculate_priority_missing_created_at_uses_default():
     service = ItemService(db=None)
     priority = service.calculate_priority({"urgency": 1})
     assert priority == "low"
+
+
+def test_calculate_priority_caching():
+    """Test that calculate_priority uses caching correctly."""
+    service = ItemService(db=None)
+    
+    # Clear cache before test
+    service.calculate_priority.cache.clear()
+    
+    item = {"urgency": 5, "is_critical": True, "created_at": datetime.utcnow()}
+    
+    # First call should compute
+    initial_cache_size = len(service.calculate_priority.cache)
+    priority1 = service.calculate_priority(item)
+    new_cache_size = len(service.calculate_priority.cache)
+    
+    # Cache should have one more entry
+    assert new_cache_size == initial_cache_size + 1
+    
+    # Second call with same item should use cache
+    priority2 = service.calculate_priority(item)
+    assert priority1 == priority2
+    assert len(service.calculate_priority.cache) == new_cache_size
+
+
+def test_calculate_priority_cache_different_items():
+    """Test that different items create separate cache entries."""
+    service = ItemService(db=None)
+    service.calculate_priority.cache.clear()
+    
+    item1 = {"urgency": 5, "is_critical": False}
+    item2 = {"urgency": 10, "is_critical": True}
+    
+    priority1 = service.calculate_priority(item1)
+    priority2 = service.calculate_priority(item2)
+    
+    # Should have two cache entries
+    assert len(service.calculate_priority.cache) == 2
+    assert priority1 != priority2
