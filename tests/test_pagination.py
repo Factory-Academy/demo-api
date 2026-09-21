@@ -1,3 +1,5 @@
+import pytest
+
 from src.utils.pagination import paginate
 
 def test_paginate_basic():
@@ -29,3 +31,13 @@ def test_paginate_beyond_total():
     assert page.total == 5
     assert page.offset == 10
     assert page.limit == 10
+
+
+def test_paginate_rejects_negative_offset():
+    with pytest.raises(ValueError, match="offset must be non-negative"):
+        paginate([1, 2, 3], offset=-1, limit=2)
+
+
+def test_paginate_rejects_non_positive_limit():
+    with pytest.raises(ValueError, match="limit must be greater than zero"):
+        paginate([1, 2, 3], offset=0, limit=0)
