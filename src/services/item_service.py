@@ -3,7 +3,8 @@ from typing import Optional
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db: object) -> None:
+        """Initialize the service with a database-like dependency."""
         self.db = db
 
     def calculate_priority(self, item: dict) -> str:
