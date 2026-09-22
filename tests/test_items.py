@@ -11,6 +11,26 @@ def test_health_check():
     assert response.json() == {"status": "healthy"}
 
 
+def test_health_check_includes_flags_when_requested(monkeypatch):
+    monkeypatch.setenv("FEATURE_WIDGETS_V2_API", "true")
+    response = client.get("/health?include_flags=true")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "healthy",
+        "feature_flags": {"widgets_v2_api": True},
+    }
+
+
+def test_health_check_includes_flag_default_false(monkeypatch):
+    monkeypatch.delenv("FEATURE_WIDGETS_V2_API", raising=False)
+    response = client.get("/health?include_flags=true")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "healthy",
+        "feature_flags": {"widgets_v2_api": False},
+    }
+
+
 def test_list_items_empty():
     response = client.get("/items/")
     assert response.status_code == 200

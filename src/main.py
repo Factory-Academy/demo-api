@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from src.routes.item_routes import router as item_router
 from src.routes.widget_routes import router as widget_router
+from src.utils.feature_flags import feature_flags
 
 app = FastAPI(
     title="{{COMPANY_NAME}} API",
@@ -13,5 +14,10 @@ app.include_router(widget_router, prefix="/widgets", tags=["widgets"])
 
 
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+async def health_check(include_flags: bool = Query(False)):
+    payload = {"status": "healthy"}
+    if include_flags:
+        payload["feature_flags"] = {
+            "widgets_v2_api": feature_flags.is_enabled("widgets_v2_api")
+        }
+    return payload
