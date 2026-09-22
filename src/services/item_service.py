@@ -1,11 +1,13 @@
 from datetime import datetime
 from typing import Optional
+from src.utils.cache import cached
 
 
 class ItemService:
     def __init__(self, db):
         self.db = db
 
+    @cached(ttl=300, maxsize=64)
     def calculate_priority(self, item: dict) -> str:
         age_days = (datetime.utcnow() - item.get("created_at", datetime.utcnow())).days
         base_score = item.get("urgency", 0) * 10
