@@ -17,6 +17,8 @@ def get_page_range(page: int, page_size: int, total_items: int) -> tuple[int, in
         raise ValueError("Page must be >= 1")
     if page_size < 1:
         raise ValueError("Page size must be >= 1")
+    if total_items < 0:
+        raise ValueError("Total items must be >= 0")
 
     start = (page - 1) * page_size
     end = min(start + page_size, total_items)

@@ -42,6 +42,12 @@ def test_get_page_range_invalid_page_size():
         get_page_range(page=1, page_size=0, total_items=25)
 
 
+def test_get_page_range_negative_total_items():
+    """Test error handling for negative total items."""
+    with pytest.raises(ValueError, match="Total items must be >= 0"):
+        get_page_range(page=1, page_size=10, total_items=-5)
+
+
 def test_paginate_list_returns_correct_items():
     """Regression test: verify each page returns the correct items."""
     items = list(range(25))  # [0, 1, 2, ..., 24]
