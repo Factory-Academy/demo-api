@@ -1,28 +1,25 @@
 from datetime import datetime
 from typing import Optional
 
+from src.services.priority import (
+    DEFAULT_STRATEGY,
+    PriorityStrategy,
+    create_priority_strategy,
+)
+
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db, priority_strategy: Optional[PriorityStrategy] = None):
         self.db = db
+        # A strategy is stateless and thread-safe, so one instance is reused
+        # for the life of the service. Callers can inject an alternative (for
+        # example the deadline model) without changing this class.
+        self.priority_strategy = priority_strategy or create_priority_strategy(
+            DEFAULT_STRATEGY
+        )
 
     def calculate_priority(self, item: dict) -> str:
-        age_days = (datetime.utcnow() - item["created_at"]).days
-        base_score = item.get("urgency", 0) * 10
-
-        if item.get("is_critical"):
-            base_score += 50
-
-        if age_days > 30:
-            base_score += age_days * 0.5
-
-        if base_score >= 80:
-            return "critical"
-        elif base_score >= 50:
-            return "high"
-        elif base_score >= 20:
-            return "medium"
-        return "low"
+        return self.priority_strategy.assess(item).level.value
 
     def validate_item(self, data: dict) -> tuple:
         errors = []
