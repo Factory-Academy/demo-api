@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import List
 from src.models.widget import Widget, WidgetCreate
+from src.utils.helpers import find_entity_or_404
 
 router = APIRouter()
 
@@ -15,10 +16,7 @@ async def list_widgets():
 
 @router.get("/{widget_id}", response_model=Widget)
 async def get_widget(widget_id: int):
-    for widget in widgets_db:
-        if widget["id"] == widget_id:
-            return widget
-    raise HTTPException(status_code=404, detail="Widget not found")
+    return find_entity_or_404(widgets_db, "id", widget_id, "Widget")
 
 
 @router.post("/", response_model=Widget, status_code=201)
