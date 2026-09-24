@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from src.utils.exceptions import ResourceNotFoundError, ValidationError
 
 
 class ItemService:
@@ -7,6 +8,9 @@ class ItemService:
         self.db = db
 
     def calculate_priority(self, item: dict) -> str:
+        if "created_at" not in item:
+            raise ValidationError("Item must have 'created_at' field")
+        
         age_days = (datetime.utcnow() - item["created_at"]).days
         base_score = item.get("urgency", 0) * 10
 
@@ -46,7 +50,8 @@ class ItemService:
         for id in ids:
             record = self.db.get(id)
             if record is None:
-                results["failed"].append({"id": id, "reason": "not found"})
+                error = ResourceNotFoundError("Item", id)
+                results["failed"].append({"id": id, "reason": error.message})
                 continue
             if record.get("status") == new_status:
                 results["skipped"].append({"id": id, "reason": "already in state"})
