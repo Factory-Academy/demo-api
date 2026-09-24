@@ -1,5 +1,18 @@
-from datetime import datetime
-from typing import Optional
+"""Item business logic.
+
+The priority scoring, payload validation, and batch-update logic have been
+split into the pure helpers under :mod:`src.services.items`. ``ItemService``
+now orchestrates those helpers with the database, keeping the same public API
+(:meth:`calculate_priority`, :meth:`validate_item`, :meth:`batch_update_status`)
+that routes and callers already depend on.
+"""
+
+from typing import Any, List, Tuple
+
+from src.services.items import batch, priority, validation
+from src.services.items.errors import ItemDataError
+
+__all__ = ["ItemService", "ItemDataError"]
 
 
 class ItemService:
@@ -7,53 +20,31 @@ class ItemService:
         self.db = db
 
     def calculate_priority(self, item: dict) -> str:
-        age_days = (datetime.utcnow() - item["created_at"]).days
-        base_score = item.get("urgency", 0) * 10
+        return priority.calculate_priority(item)
 
-        if item.get("is_critical"):
-            base_score += 50
-
-        if age_days > 30:
-            base_score += age_days * 0.5
-
-        if base_score >= 80:
-            return "critical"
-        elif base_score >= 50:
-            return "high"
-        elif base_score >= 20:
-            return "medium"
-        return "low"
-
-    def validate_item(self, data: dict) -> tuple:
-        errors = []
-        if not data.get("name") or len(data["name"].strip()) == 0:
-            errors.append("Name is required")
-        if data.get("quantity", 0) < 0:
-            errors.append("Quantity cannot be negative")
-        if data.get("due_date"):
-            try:
-                due = datetime.fromisoformat(data["due_date"])
-                if due < datetime.utcnow():
-                    errors.append("Due date cannot be in the past")
-            except ValueError:
-                errors.append("Invalid date format")
-        return len(errors) == 0, errors
+    def validate_item(self, data: dict) -> Tuple[bool, List[str]]:
+        return validation.validate_item(data)
 
     def batch_update_status(
-        self, ids: list, new_status: str, updated_by: str
+        self, ids: Any, new_status: str, updated_by: str
     ) -> dict:
+        if not new_status:
+            raise ItemDataError("new_status is required")
+
         results = {"updated": [], "failed": [], "skipped": []}
-        for id in ids:
-            record = self.db.get(id)
-            if record is None:
-                results["failed"].append({"id": id, "reason": "not found"})
-                continue
-            if record.get("status") == new_status:
-                results["skipped"].append({"id": id, "reason": "already in state"})
-                continue
-            record["status"] = new_status
-            record["updated_by"] = updated_by
-            record["updated_at"] = datetime.utcnow()
-            self.db.save(record)
-            results["updated"].append(id)
+        unique_ids = batch.normalize_ids(ids)
+        batch.enforce_batch_limit(unique_ids)
+
+        for identifier in unique_ids:
+            record = self.db.get(identifier)
+            action, reason = batch.plan_update(record, new_status)
+            if action == batch.ACTION_FAILED:
+                results["failed"].append({"id": identifier, "reason": reason})
+            elif action == batch.ACTION_SKIPPED:
+                results["skipped"].append({"id": identifier, "reason": reason})
+            else:
+                updated = batch.apply_update(record, new_status, updated_by)
+                self.db.save(updated)
+                results["updated"].append(identifier)
+
         return results
