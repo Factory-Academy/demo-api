@@ -11,6 +11,7 @@ live here so they can be tested without a database.
 from datetime import datetime
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
+from .dedup import dedupe_preserving_order
 from .errors import ItemDataError
 
 # Upper bound on ids processed in a single call. Prevents an accidental
@@ -29,7 +30,8 @@ def normalize_ids(ids: Any) -> List[Any]:
     ``None`` becomes an empty batch. Strings/bytes are rejected explicitly so a
     single id passed as ``"42"`` is not silently iterated into ``["4", "2"]``.
     Mappings contribute their keys. Anything non-iterable raises
-    ``ItemDataError``.
+    ``ItemDataError``. De-duplication tolerates unhashable identifiers (e.g. a
+    composite ``list``/``dict`` id) instead of raising ``TypeError``.
     """
     if ids is None:
         return []
@@ -42,14 +44,7 @@ def normalize_ids(ids: Any) -> List[Any]:
     else:
         raise ItemDataError("ids must be an iterable of identifiers")
 
-    seen = set()
-    unique: List[Any] = []
-    for identifier in candidate:
-        if identifier in seen:
-            continue
-        seen.add(identifier)
-        unique.append(identifier)
-    return unique
+    return list(dedupe_preserving_order(candidate))
 
 
 def enforce_batch_limit(ids: List[Any], limit: int = MAX_BATCH_SIZE) -> None:

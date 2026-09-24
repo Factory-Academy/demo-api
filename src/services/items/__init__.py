@@ -5,12 +5,13 @@ in ``ItemService``. Import the submodules (``priority``, ``validation``,
 ``batch``, ``coerce``) or the re-exported entry points below.
 """
 
-from . import batch, coerce, priority, validation
+from . import batch, coerce, dedup, priority, validation
 from .errors import ItemDataError
 
 __all__ = [
     "batch",
     "coerce",
+    "dedup",
     "priority",
     "validation",
     "ItemDataError",

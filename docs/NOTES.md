@@ -67,3 +67,26 @@ Regression coverage lives across:
 
 Each previously-crashing input listed above has a dedicated regression test.
 Run them with `pytest tests/ -v`.
+
+## Follow-up: further edge-case tightening
+
+Review feedback surfaced two remaining gaps in the same edge-case class, fixed
+here without changing the public API:
+
+| Helper | Trigger | Old behaviour | New behaviour |
+|---|---|---|---|
+| `coerce.as_number` | value is a `Decimal`/`Fraction` (or numpy real) | fell through to the default, dropping a valid quantity/urgency to `0` | coerced via `float()`; still rejects `bool` and non-finite (`NaN`/`inf`/overflow) values |
+| `batch.normalize_ids` | `ids` contains an unhashable identifier (e.g. a composite `list`/`dict` id) | `TypeError` from the `set`-based de-dup | de-duplicated without raising; equal unhashable ids still collapse |
+
+The order-preserving de-duplication used by `normalize_ids` moved into
+`dedup.py` (`dedupe_preserving_order`) so it is pure and independently tested.
+Hashable ids stay in a `set` for O(1) membership; unhashable ids fall back to a
+linear scan, trading speed for never crashing.
+
+New/extended regression coverage:
+
+- `tests/test_dedup.py` — de-dup order, generator input, unhashable and mixed
+  hashable/unhashable elements.
+- `tests/test_coerce.py` — `Decimal`/`Fraction` acceptance and non-finite
+  `Decimal` rejection.
+- `tests/test_batch.py` — unhashable, mixed, and generator id collections.

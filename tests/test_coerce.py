@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+from fractions import Fraction
 
 import pytest
 
@@ -27,6 +29,27 @@ class TestAsNumber:
         # A stray bool must not silently score as 1/0.
         assert coerce.as_number(True, default=99.0) == 99.0
         assert coerce.as_number(False, default=99.0) == 99.0
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (Decimal("3.5"), 3.5),
+            (Decimal("-4"), -4.0),
+            (Fraction(1, 2), 0.5),
+            (Fraction(7, 1), 7.0),
+        ],
+    )
+    def test_accepts_real_numeric_types(self, value, expected):
+        # Regression: Decimal/Fraction fell through to the default before.
+        assert coerce.as_number(value) == expected
+
+    @pytest.mark.parametrize("value", [Decimal("nan"), Decimal("inf"), Decimal("-inf")])
+    def test_rejects_non_finite_decimals(self, value):
+        assert coerce.as_number(value, default=0.0) == 0.0
+
+    def test_rejects_overflowing_decimal(self):
+        # float(Decimal("1e400")) -> inf, which _finite rejects.
+        assert coerce.as_number(Decimal("1e400"), default=0.0) == 0.0
 
     @pytest.mark.parametrize("value", ["nan", "inf", "-inf", float("nan"), float("inf")])
     def test_rejects_non_finite(self, value):

@@ -7,7 +7,9 @@ well-typed result (or a caller-supplied default) without raising. The original
 Centralising the coercion keeps that defensiveness in one tested place.
 """
 
+import decimal
 import math
+import numbers
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -27,12 +29,20 @@ def as_number(value: Any, default: Any = 0.0) -> Any:
 
     Returns ``default`` for ``None``, blank strings, non-numeric strings, and
     unsupported types. Booleans are intentionally *not* treated as numbers so a
-    stray ``True``/``False`` does not silently score as ``1``/``0``.
+    stray ``True``/``False`` does not silently score as ``1``/``0``. Real
+    numeric types beyond ``int``/``float`` (``Decimal``, ``Fraction``, and
+    numpy scalars) are accepted, since rejecting them would drop otherwise valid
+    quantities/urgencies to the default.
     """
     if value is None or isinstance(value, bool):
         return default
-    if isinstance(value, (int, float)):
-        return _finite(float(value), default)
+    # ``numbers.Real`` covers int/float/Fraction/numpy reals; ``Decimal`` is
+    # deliberately not registered as ``Real`` upstream, so accept it explicitly.
+    if isinstance(value, (numbers.Real, decimal.Decimal)):
+        try:
+            return _finite(float(value), default)
+        except (ValueError, OverflowError):
+            return default
     if isinstance(value, str):
         stripped = value.strip()
         if not stripped:

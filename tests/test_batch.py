@@ -33,6 +33,16 @@ class TestNormalizeIds:
         with pytest.raises(ItemDataError):
             batch.normalize_ids(42)
 
+    def test_unhashable_ids_do_not_raise(self):
+        # Regression: set-based de-dup raised TypeError on list/dict ids.
+        assert batch.normalize_ids([[1], [1], {"k": 1}]) == [[1], {"k": 1}]
+
+    def test_mixed_hashable_and_unhashable_ids(self):
+        assert batch.normalize_ids([1, [2], 1, [2], 3]) == [1, [2], 3]
+
+    def test_generator_ids_supported(self):
+        assert batch.normalize_ids(x for x in [5, 5, 6]) == [5, 6]
+
 
 class TestEnforceBatchLimit:
     def test_within_limit_ok(self):
