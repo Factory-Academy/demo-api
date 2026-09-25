@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.feature_flags import flags
 
 router = APIRouter()
 
@@ -57,3 +58,17 @@ async def delete_item(item_id: int):
             items_db.pop(i)
             return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Item not found")
+
+
+@router.get("/stats/summary")
+@flags.require_flag("item_stats")
+async def get_item_stats():
+    """
+    Get summary statistics for items.
+    
+    This endpoint is protected by the FEATURE_ITEM_STATS environment variable.
+    """
+    return {
+        "total_items": len(items_db),
+        "active_items": sum(1 for item in items_db if item.get("status") == "active"),
+    }
