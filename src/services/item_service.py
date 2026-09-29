@@ -1,10 +1,12 @@
 from datetime import datetime
+from typing import Optional, List
 
 from src.services.priority import (
     DEFAULT_STRATEGY,
     PriorityStrategy,
     create_priority_strategy,
 )
+from src.services.items import validate_tags
 
 
 class ItemService:
@@ -19,6 +21,20 @@ class ItemService:
 
     def calculate_priority(self, item: dict) -> str:
         return self.priority_strategy.assess(item).level.value
+
+    def add_tags(self, item_id: int, tags: List[str]) -> dict:
+        record = self.db.get(item_id)
+        if not record:
+            return {"success": False, "error": "Item not found"}
+        
+        errors = validate_tags(tags)
+        if errors:
+            return {"success": False, "errors": errors}
+        
+        existing_tags = record.get("tags", [])
+        record["tags"] = list(set(existing_tags + tags))
+        self.db.save(record)
+        return {"success": True, "item": record}
 
     def validate_item(self, data: dict) -> tuple:
         errors = []

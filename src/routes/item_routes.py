@@ -5,11 +5,27 @@ from fastapi import APIRouter, HTTPException
 
 from src.models.item import Item, ItemCreate, ItemUpdate
 from src.utils.feature_flags import flags
+from src.services.item_service import ItemService
 
 router = APIRouter()
 
 items_db: List[dict] = []
 next_id = 1
+
+# Simple mock DB for ItemService
+class MockDB:
+    def get(self, id):
+        for item in items_db:
+            if item["id"] == id:
+                return item
+        return None
+    def save(self, record):
+        for i, item in enumerate(items_db):
+            if item["id"] == record["id"]:
+                items_db[i] = record
+                return
+
+service = ItemService(db=MockDB())
 
 
 @router.get("/", response_model=List[Item])
@@ -58,6 +74,16 @@ async def delete_item(item_id: int):
             items_db.pop(i)
             return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Item not found")
+
+
+@router.post("/{item_id}/tags")
+async def add_tags(item_id: int, tags: List[str]):
+    result = service.add_tags(item_id, tags)
+    if not result["success"]:
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        raise HTTPException(status_code=400, detail=result["errors"])
+    return result["item"]
 
 
 @router.get("/stats/summary")
