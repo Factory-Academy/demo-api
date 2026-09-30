@@ -3,6 +3,7 @@
 import pytest
 from datetime import datetime
 from src.services.item_service import ItemService
+from src.utils.filters import FilterError
 
 
 class MockDB:
@@ -128,6 +129,31 @@ class TestItemServiceStatusSummary:
         assert active_stats["urgency"] == 15.0  # Average
         assert active_stats["quantity"] == 300  # Sum
 
+    def test_summary_with_empty_database(self):
+        """EDGE CASE: Summary should handle empty database gracefully."""
+        db = MockDB()
+        service = ItemService(db)
+
+        result = service.get_status_summary()
+
+        assert result["total_items"] == 0
+        assert result["status_breakdown"] == {}
+
+    def test_summary_handles_items_without_status(self):
+        """EDGE CASE: Items without status field should be skipped."""
+        db = MockDB()
+        db.data = {
+            1: {"id": 1, "urgency": 5, "quantity": 10},  # No status field
+            2: {"id": 2, "status": "active", "urgency": 3, "quantity": 5},
+        }
+        service = ItemService(db)
+
+        result = service.get_status_summary()
+
+        # Only the item with status should be counted
+        assert result["total_items"] == 1
+        assert "active" in result["status_breakdown"]
+
 
 class TestItemServiceBuildFilter:
     """Tests for build_item_filter method."""
@@ -186,6 +212,22 @@ class TestItemServiceBuildFilter:
         # Second call without tags
         result2 = service.build_item_filter()
         assert result2["tags"] == []
+
+    def test_build_filter_invalid_status_list_type(self):
+        """EDGE CASE: Invalid status_list type should raise error."""
+        db = MockDB()
+        service = ItemService(db)
+
+        with pytest.raises(FilterError, match="include_status must be a list or None"):
+            service.build_item_filter(status_list="active")
+
+    def test_build_filter_invalid_tags_type(self):
+        """EDGE CASE: Invalid tags type should raise error."""
+        db = MockDB()
+        service = ItemService(db)
+
+        with pytest.raises(FilterError, match="tags must be a list or None"):
+            service.build_item_filter(tags="important")
 
 
 class TestItemServiceBatchUpdate:

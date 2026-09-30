@@ -5,7 +5,11 @@ All functions properly handle mutable default arguments using None-checks.
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+
+
+class FilterError(Exception):
+    """Exception raised for errors in filter operations."""
+    pass
 
 
 def filter_items_by_criteria(
@@ -23,11 +27,20 @@ def filter_items_by_criteria(
     Returns:
         Filtered list of items matching criteria with excluded fields removed
 
+    Raises:
+        FilterError: If items is None or not a list, or if items contain non-dict types
+
     Example:
         >>> items = [{"id": 1, "name": "test", "status": "active"}]
         >>> filter_items_by_criteria(items, {"status": "active"})
         [{"id": 1, "name": "test", "status": "active"}]
     """
+    # Input validation
+    if items is None:
+        raise FilterError("items cannot be None")
+    if not isinstance(items, list):
+        raise FilterError("items must be a list")
+
     # Properly handle mutable defaults
     if criteria is None:
         criteria = {}
@@ -36,6 +49,9 @@ def filter_items_by_criteria(
 
     filtered = []
     for item in items:
+        # Validate item type
+        if not isinstance(item, dict):
+            raise FilterError(f"All items must be dictionaries, found {type(item).__name__}")
         # Check if item matches all criteria
         matches = all(
             item.get(key) == value for key, value in criteria.items()
@@ -65,11 +81,20 @@ def apply_transformations(
     Returns:
         Transformed item dictionary
 
+    Raises:
+        FilterError: If item is None or not a dict, or if transformation fails
+
     Example:
         >>> item = {"name": "test"}
         >>> apply_transformations(item, defaults={"status": "active"})
         {"name": "test", "status": "active"}
     """
+    # Input validation
+    if item is None:
+        raise FilterError("item cannot be None")
+    if not isinstance(item, dict):
+        raise FilterError("item must be a dictionary")
+
     # Properly handle mutable defaults
     if transformations is None:
         transformations = {}
@@ -84,10 +109,15 @@ def apply_transformations(
         if key not in result:
             result[key] = value
 
-    # Apply transformations
+    # Apply transformations with error handling
     for field, transform_fn in transformations.items():
         if field in result:
-            result[field] = transform_fn(result[field])
+            try:
+                result[field] = transform_fn(result[field])
+            except Exception as e:
+                raise FilterError(
+                    f"Transformation failed for field '{field}': {str(e)}"
+                )
 
     return result
 
@@ -108,6 +138,10 @@ def aggregate_items(
     Returns:
         Dictionary mapping group values to aggregated results
 
+    Raises:
+        FilterError: If items is None/not a list, group_by is empty,
+                    or invalid aggregation type is specified
+
     Example:
         >>> items = [
         ...     {"status": "active", "count": 5},
@@ -116,14 +150,34 @@ def aggregate_items(
         >>> aggregate_items(items, "status", {"count": "sum"})
         {"active": {"count": 8}}
     """
+    # Input validation
+    if items is None:
+        raise FilterError("items cannot be None")
+    if not isinstance(items, list):
+        raise FilterError("items must be a list")
+    if not group_by or not isinstance(group_by, str):
+        raise FilterError("group_by must be a non-empty string")
+
     # Properly handle mutable defaults
     if aggregations is None:
         aggregations = {}
+
+    # Validate aggregation types
+    valid_agg_types = {"sum", "count", "avg", "min", "max"}
+    for field, agg_type in aggregations.items():
+        if agg_type not in valid_agg_types:
+            raise FilterError(
+                f"Invalid aggregation type '{agg_type}' for field '{field}'. "
+                f"Valid types: {', '.join(sorted(valid_agg_types))}"
+            )
 
     groups: Dict[str, List[Dict[str, Any]]] = {}
 
     # Group items
     for item in items:
+        if not isinstance(item, dict):
+            raise FilterError(f"All items must be dictionaries, found {type(item).__name__}")
+        
         key = item.get(group_by)
         if key is not None:
             if key not in groups:
@@ -177,6 +231,9 @@ def build_query_filter(
     Returns:
         Dictionary representing the filter configuration
 
+    Raises:
+        FilterError: If parameters are not lists when provided
+
     Example:
         >>> build_query_filter(include_status=["active", "pending"])
         {"include_status": ["active", "pending"], "exclude_status": [], "tags": []}
@@ -184,10 +241,18 @@ def build_query_filter(
     # Properly handle mutable defaults
     if include_status is None:
         include_status = []
+    elif not isinstance(include_status, list):
+        raise FilterError("include_status must be a list or None")
+    
     if exclude_status is None:
         exclude_status = []
+    elif not isinstance(exclude_status, list):
+        raise FilterError("exclude_status must be a list or None")
+    
     if tags is None:
         tags = []
+    elif not isinstance(tags, list):
+        raise FilterError("tags must be a list or None")
 
     return {
         "include_status": include_status,

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from src.utils.filters import aggregate_items, build_query_filter
+from src.utils.filters import aggregate_items, build_query_filter, FilterError
 
 
 class ItemService:

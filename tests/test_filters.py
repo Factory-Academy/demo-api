@@ -9,6 +9,7 @@ from src.utils.filters import (
     apply_transformations,
     aggregate_items,
     build_query_filter,
+    FilterError,
 )
 
 
@@ -106,6 +107,22 @@ class TestFilterItemsByCriteria:
         assert len(result) == 1
         assert result[0]["id"] == 1
 
+    def test_items_none_raises_error(self):
+        """EDGE CASE: items=None should raise FilterError."""
+        with pytest.raises(FilterError, match="items cannot be None"):
+            filter_items_by_criteria(None)
+
+    def test_items_not_list_raises_error(self):
+        """EDGE CASE: items must be a list."""
+        with pytest.raises(FilterError, match="items must be a list"):
+            filter_items_by_criteria("not a list")
+
+    def test_items_contain_non_dict_raises_error(self):
+        """EDGE CASE: all items must be dictionaries."""
+        items = [{"id": 1}, "not a dict", {"id": 3}]
+        with pytest.raises(FilterError, match="must be dictionaries"):
+            filter_items_by_criteria(items)
+
 
 class TestApplyTransformations:
     """Tests for apply_transformations function."""
@@ -190,6 +207,30 @@ class TestApplyTransformations:
 
         # Original should be unchanged
         assert original == original_copy
+
+    def test_item_none_raises_error(self):
+        """EDGE CASE: item=None should raise FilterError."""
+        with pytest.raises(FilterError, match="item cannot be None"):
+            apply_transformations(None)
+
+    def test_item_not_dict_raises_error(self):
+        """EDGE CASE: item must be a dictionary."""
+        with pytest.raises(FilterError, match="item must be a dictionary"):
+            apply_transformations("not a dict")
+
+    def test_transformation_exception_raises_filter_error(self):
+        """EDGE CASE: transformation that raises exception should be caught."""
+        item = {"name": "test", "count": 5}
+        
+        # Transformation that will fail
+        def bad_transform(x):
+            raise ValueError("Intentional error")
+        
+        with pytest.raises(FilterError, match="Transformation failed for field 'name'"):
+            apply_transformations(
+                item,
+                transformations={"name": bad_transform}
+            )
 
 
 class TestAggregateItems:
@@ -277,6 +318,40 @@ class TestAggregateItems:
         result = aggregate_items([], "status", {"count": "sum"})
         assert result == {}
 
+    def test_items_none_raises_error(self):
+        """EDGE CASE: items=None should raise FilterError."""
+        with pytest.raises(FilterError, match="items cannot be None"):
+            aggregate_items(None, "status")
+
+    def test_items_not_list_raises_error(self):
+        """EDGE CASE: items must be a list."""
+        with pytest.raises(FilterError, match="items must be a list"):
+            aggregate_items("not a list", "status")
+
+    def test_empty_group_by_raises_error(self):
+        """EDGE CASE: group_by must be non-empty string."""
+        items = [{"status": "active"}]
+        with pytest.raises(FilterError, match="group_by must be a non-empty string"):
+            aggregate_items(items, "")
+
+    def test_invalid_aggregation_type_raises_error(self):
+        """EDGE CASE: invalid aggregation type should raise FilterError."""
+        items = [{"status": "active", "count": 5}]
+        with pytest.raises(FilterError, match="Invalid aggregation type 'summ'"):
+            aggregate_items(items, "status", {"count": "summ"})
+
+    def test_items_contain_non_dict_raises_error(self):
+        """EDGE CASE: all items must be dictionaries."""
+        items = [{"status": "active"}, "not a dict"]
+        with pytest.raises(FilterError, match="must be dictionaries"):
+            aggregate_items(items, "status", {"count": "sum"})
+
+    def test_multiple_invalid_aggregation_types(self):
+        """EDGE CASE: test error message for invalid aggregation type."""
+        items = [{"status": "active", "count": 5}]
+        with pytest.raises(FilterError, match="Valid types: avg, count, max, min, sum"):
+            aggregate_items(items, "status", {"count": "average"})
+
 
 class TestBuildQueryFilter:
     """Tests for build_query_filter function."""
@@ -344,3 +419,18 @@ class TestBuildQueryFilter:
 
         assert result1["include_status"] == ["active", "extra"]
         assert result2["include_status"] == ["pending"]
+
+    def test_include_status_not_list_raises_error(self):
+        """EDGE CASE: include_status must be a list or None."""
+        with pytest.raises(FilterError, match="include_status must be a list or None"):
+            build_query_filter(include_status="active")
+
+    def test_exclude_status_not_list_raises_error(self):
+        """EDGE CASE: exclude_status must be a list or None."""
+        with pytest.raises(FilterError, match="exclude_status must be a list or None"):
+            build_query_filter(exclude_status="deleted")
+
+    def test_tags_not_list_raises_error(self):
+        """EDGE CASE: tags must be a list or None."""
+        with pytest.raises(FilterError, match="tags must be a list or None"):
+            build_query_filter(tags="important")
