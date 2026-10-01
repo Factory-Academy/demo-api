@@ -1,5 +1,12 @@
+import re
 from datetime import datetime
 from typing import Optional
+
+
+def slugify(value: str) -> str:
+    normalized = value.strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized)
+    return slug.strip("-")
 
 
 class ItemService:
