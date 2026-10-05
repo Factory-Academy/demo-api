@@ -135,6 +135,17 @@ class ItemService:
 
         Returns:
             Filter configuration dictionary
+
+        Example:
+            >>> service.build_item_filter(
+            ...     status_list=["active", "pending"],
+            ...     tags=["urgent"]
+            ... )
+            {
+                "include_status": ["active", "pending"],
+                "exclude_status": [],
+                "tags": ["urgent"],
+            }
         """
         # Use the utility function which properly handles mutable defaults
         return build_query_filter(

@@ -187,6 +187,22 @@ class TestItemServiceBuildFilter:
 
         assert result["tags"] == ["important", "urgent"]
 
+    def test_build_filter_with_status_and_tags(self):
+        """Test building filter with both status list and tags."""
+        db = MockDB()
+        service = ItemService(db)
+
+        result = service.build_item_filter(
+            status_list=["active", "pending"],
+            tags=["urgent"],
+        )
+
+        assert result == {
+            "include_status": ["active", "pending"],
+            "exclude_status": [],
+            "tags": ["urgent"],
+        }
+
     def test_mutable_default_regression_status_list(self):
         """REGRESSION TEST: status_list default should not persist."""
         db = MockDB()
