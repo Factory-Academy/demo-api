@@ -30,3 +30,10 @@ def test_calculate_priority_without_created_at():
     item = {"urgency": 5}
     priority = service.calculate_priority(item)
     assert priority == "high"
+
+
+def test_calculate_priority_critical_item():
+    service = ItemService(db=None)
+    item = {"urgency": 4, "is_critical": True}
+    priority = service.calculate_priority(item)
+    assert priority == "critical"
