@@ -19,3 +19,8 @@ def test_slugify_unicode():
 
 def test_slugify_hyphens():
     assert slugify("hello--world") == "hello-world"
+
+
+def test_slugify_empty():
+    assert slugify("") == ""
+    assert slugify(None) == ""  # type: ignore
