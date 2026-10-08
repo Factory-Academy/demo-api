@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Mapping, Optional
 
+from src.services.items._coerce import as_datetime, make_naive_utc, number_or
+
 # Priority levels, ordered from most to least urgent. Returned as plain
 # strings so the public service contract is unchanged.
 CRITICAL = "critical"
@@ -35,17 +37,28 @@ _THRESHOLDS = (
 
 @dataclass(frozen=True)
 class PriorityInputs:
-    """The only fields that influence an item's priority."""
+    """The only fields that influence an item's priority.
 
-    created_at: datetime
-    urgency: int = 0
+    ``created_at`` is optional: a raw item may omit it or carry an unparseable
+    value, in which case the staleness bonus simply does not apply.
+    """
+
+    created_at: Optional[datetime] = None
+    urgency: float = 0
     is_critical: bool = False
 
 
-def age_in_days(created_at: datetime, now: datetime) -> int:
+def age_in_days(created_at: Optional[datetime], now: datetime) -> int:
     """Whole days between ``created_at`` and ``now`` (truncated toward zero,
-    matching ``timedelta.days``)."""
-    return (now - created_at).days
+    matching ``timedelta.days``).
+
+    Missing timestamps count as zero age, and either operand may be timezone
+    aware or naive -- both are normalised to UTC before subtracting so the
+    comparison never raises.
+    """
+    if created_at is None:
+        return 0
+    return (make_naive_utc(now) - make_naive_utc(created_at)).days
 
 
 def score(inputs: PriorityInputs, now: datetime) -> float:
@@ -68,10 +81,15 @@ def level_for_score(value: float) -> str:
 
 
 def inputs_from_item(item: Mapping) -> PriorityInputs:
-    """Extract :class:`PriorityInputs` from a raw item mapping."""
+    """Extract :class:`PriorityInputs` from a raw item mapping.
+
+    Untrusted fields are coerced rather than trusted: a missing or malformed
+    ``created_at`` becomes ``None`` (no staleness bonus) and a non-numeric
+    ``urgency`` falls back to ``0``, so scoring never raises on bad input.
+    """
     return PriorityInputs(
-        created_at=item["created_at"],
-        urgency=item.get("urgency", 0),
+        created_at=as_datetime(item.get("created_at")),
+        urgency=number_or(item.get("urgency", 0), 0),
         is_critical=bool(item.get("is_critical")),
     )
 

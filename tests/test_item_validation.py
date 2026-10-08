@@ -39,6 +39,17 @@ def test_whitespace_only_name():
     assert validation.NAME_REQUIRED in result.errors
 
 
+def test_none_name_is_required_not_wrong_type():
+    result = validation.validate({"name": None}, now=NOW)
+    assert result.errors == [validation.NAME_REQUIRED]
+
+
+@pytest.mark.parametrize("name", [123, 4.5, True, ["x"], {"a": 1}])
+def test_non_text_name_is_rejected_without_raising(name):
+    result = validation.validate({"name": name}, now=NOW)
+    assert result.errors == [validation.NAME_MUST_BE_TEXT]
+
+
 def test_negative_quantity():
     result = validation.validate({"name": "x", "quantity": -1}, now=NOW)
     assert result.errors == [validation.NEGATIVE_QUANTITY]
@@ -46,6 +57,22 @@ def test_negative_quantity():
 
 def test_zero_quantity_is_allowed():
     result = validation.validate({"name": "x", "quantity": 0}, now=NOW)
+    assert result.is_valid is True
+
+
+def test_float_quantity_is_allowed():
+    result = validation.validate({"name": "x", "quantity": 2.5}, now=NOW)
+    assert result.is_valid is True
+
+
+@pytest.mark.parametrize("quantity", ["5", None, [1], {"n": 1}, True, False])
+def test_non_numeric_quantity_is_rejected_without_raising(quantity):
+    result = validation.validate({"name": "x", "quantity": quantity}, now=NOW)
+    assert result.errors == [validation.NON_NUMERIC_QUANTITY]
+
+
+def test_missing_quantity_is_not_checked():
+    result = validation.validate({"name": "x"}, now=NOW)
     assert result.is_valid is True
 
 
@@ -77,9 +104,35 @@ def test_invalid_due_date_format():
     assert result.errors == [validation.INVALID_DATE_FORMAT]
 
 
+def test_non_string_due_date_is_invalid_format_not_a_crash():
+    result = validation.validate({"name": "x", "due_date": 20240101}, now=NOW)
+    assert result.errors == [validation.INVALID_DATE_FORMAT]
+
+
+def test_due_date_with_z_suffix_in_future_is_allowed():
+    result = validation.validate(
+        {"name": "x", "due_date": "2024-12-01T00:00:00Z"}, now=NOW
+    )
+    assert result.is_valid is True
+
+
+def test_timezone_aware_due_date_in_past_is_rejected():
+    # NOW is naive; a tz-aware past timestamp must not raise when compared.
+    result = validation.validate(
+        {"name": "x", "due_date": "2024-01-01T00:00:00+00:00"}, now=NOW
+    )
+    assert result.errors == [validation.DUE_DATE_IN_PAST]
+
+
 def test_empty_due_date_string_is_skipped():
     result = validation.validate({"name": "x", "due_date": ""}, now=NOW)
     assert result.is_valid is True
+
+
+def test_whitespace_only_due_date_is_treated_as_invalid():
+    # The string is truthy, so it is parsed and found unusable rather than skipped.
+    result = validation.validate({"name": "x", "due_date": "   "}, now=NOW)
+    assert result.errors == [validation.INVALID_DATE_FORMAT]
 
 
 def test_multiple_errors_accumulate_in_order():

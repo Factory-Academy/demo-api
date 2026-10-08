@@ -66,3 +66,37 @@ omit it behave as before.
   compatibility.
 - `tests/test_item_service.py` — adapter delegation, `batch_update_status`
   outcomes against a fake in-memory db, and the legacy import path.
+
+## Follow-up: edge-case hardening
+
+Review feedback: the pure core trusted the shape of its input. Malformed
+payloads leaked raw built-in exceptions instead of being handled by the domain
+rules — a non-string `name` raised `AttributeError`, a non-numeric `quantity`
+or `urgency` raised `TypeError`, a missing `created_at` raised `KeyError`, and
+a timezone-aware `due_date` raised `TypeError` when compared with the naive
+`now`.
+
+The follow-up adds one small, I/O-free helper, `src/services/items/_coerce.py`,
+and routes the untrusted-field handling through it:
+
+- `is_number` / `number_or` — strict numeric detection for validation (which
+  reports a problem) and lenient coercion for scoring (which has no error
+  channel and defaults instead).
+- `parse_timestamp` / `as_datetime` — parse ISO-8601 strings, accept a trailing
+  `Z` on every supported Python version (not just 3.11+), and return `None`
+  rather than raising on junk.
+- `make_naive_utc` — normalise timestamps to naive UTC so aware and naive
+  values can be compared without raising.
+
+Behaviour changes are additive and backward compatible:
+
+- `validate` gains two messages — `NAME_MUST_BE_TEXT` for a non-string name and
+  `NON_NUMERIC_QUANTITY` for a non-number quantity — slotted into the existing
+  name/quantity/due-date order. All previous messages, their order, and the
+  `ValidationResult` tuple contract are unchanged.
+- `priority` now treats a missing or unparseable `created_at` as "no staleness
+  bonus" and a non-numeric `urgency` as `0`, so a bad item scores low instead
+  of crashing. `PriorityInputs.created_at` is now `Optional[datetime]`.
+
+Tests: `tests/test_item_coerce.py` covers the helper directly, and the priority
+and validation suites gain cases for each malformed-input path above.

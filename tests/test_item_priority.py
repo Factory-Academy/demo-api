@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,6 +16,17 @@ def test_age_in_days_truncates_toward_zero():
 def test_age_in_days_zero_when_not_yet_a_full_day():
     now = BASE + timedelta(hours=23)
     assert priority.age_in_days(BASE, now) == 0
+
+
+def test_age_in_days_none_created_at_is_zero():
+    assert priority.age_in_days(None, BASE) == 0
+
+
+def test_age_in_days_handles_mixed_tz_awareness():
+    created = BASE.replace(tzinfo=timezone.utc)  # aware
+    now = BASE + timedelta(days=10)  # naive
+    # Must not raise comparing aware vs naive, and UTC values line up.
+    assert priority.age_in_days(created, now) == 10
 
 
 @pytest.mark.parametrize(
@@ -103,3 +114,46 @@ def test_inputs_from_item_coerces_is_critical_to_bool():
     inputs = priority.inputs_from_item({"created_at": BASE, "is_critical": 1})
     assert inputs.is_critical is True
     assert inputs.urgency == 0
+
+
+def test_inputs_from_item_missing_created_at_is_none():
+    inputs = priority.inputs_from_item({"urgency": 1})
+    assert inputs.created_at is None
+
+
+def test_inputs_from_item_parses_iso_created_at():
+    inputs = priority.inputs_from_item({"created_at": "2024-01-01T00:00:00"})
+    assert inputs.created_at == BASE
+
+
+def test_inputs_from_item_coerces_numeric_string_urgency():
+    inputs = priority.inputs_from_item({"created_at": BASE, "urgency": "5"})
+    assert inputs.urgency == 5
+
+
+def test_inputs_from_item_defaults_junk_urgency_to_zero():
+    inputs = priority.inputs_from_item({"created_at": BASE, "urgency": "abc"})
+    assert inputs.urgency == 0
+
+
+def test_classify_missing_created_at_scores_without_staleness():
+    # No created_at -> no staleness bonus; urgency alone decides the level.
+    item = {"urgency": 2}  # 2 * 10 = 20 -> medium
+    assert priority.classify(item, now=BASE) == priority.MEDIUM
+
+
+def test_classify_numeric_string_urgency_is_scored():
+    item = {"created_at": BASE, "urgency": "5"}  # 50 -> high
+    assert priority.classify(item, now=BASE) == priority.HIGH
+
+
+def test_classify_junk_urgency_falls_back_to_low():
+    item = {"created_at": BASE, "urgency": object()}
+    assert priority.classify(item, now=BASE) == priority.LOW
+
+
+def test_classify_tolerates_mixed_tz_created_at():
+    item = {"created_at": BASE.replace(tzinfo=timezone.utc), "urgency": 0}
+    now = BASE + timedelta(days=100)  # naive; 100 days stale
+    # 100 * 0.5 = 50 -> high, and the aware/naive mix must not raise.
+    assert priority.classify(item, now=now) == priority.HIGH
