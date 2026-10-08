@@ -13,5 +13,6 @@ app.include_router(widget_router, prefix="/widgets", tags=["widgets"])
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
+    """Return a simple health status payload for service monitoring."""
     return {"status": "healthy"}
