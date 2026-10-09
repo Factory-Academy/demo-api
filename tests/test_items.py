@@ -43,3 +43,24 @@ def test_create_widget():
     body = response.json()
     assert body["name"] == "Test Widget"
     assert body["id"] == 1
+
+
+def test_update_item_skips_malformed_records():
+    item_routes.items_db.extend(
+        [
+            {"name": "invalid-record"},
+            {
+                "id": 2,
+                "name": "Target Item",
+                "description": "before",
+                "status": "active",
+                "created_at": "2026-01-01T00:00:00",
+                "updated_at": "2026-01-01T00:00:00",
+            },
+        ]
+    )
+
+    response = client.put("/items/2", json={"description": "after"})
+
+    assert response.status_code == 200
+    assert response.json()["description"] == "after"

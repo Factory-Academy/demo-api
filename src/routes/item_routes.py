@@ -1,7 +1,12 @@
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
-from src.routes.record_helpers import build_timestamped_record, find_record_by_id
+from src.routes.record_helpers import (
+    build_timestamped_record,
+    find_record_by_id,
+    find_record_index_by_id,
+)
 
 router = APIRouter()
 
@@ -33,14 +38,13 @@ async def create_item(item: ItemCreate):
 
 @router.put("/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: ItemUpdate):
-    from datetime import datetime
-
-    for i, existing in enumerate(items_db):
-        if existing["id"] == item_id:
-            update_data = item.model_dump(exclude_unset=True)
-            update_data["updated_at"] = datetime.utcnow()
-            items_db[i] = {**existing, **update_data}
-            return items_db[i]
+    record_index = find_record_index_by_id(items_db, item_id)
+    if record_index is not None:
+        existing = items_db[record_index]
+        update_data = item.model_dump(exclude_unset=True)
+        update_data["updated_at"] = datetime.utcnow()
+        items_db[record_index] = {**existing, **update_data}
+        return items_db[record_index]
     raise HTTPException(status_code=404, detail="Item not found")
 
 
