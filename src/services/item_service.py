@@ -1,12 +1,22 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db: Any):
         self.db = db
 
-    def calculate_priority(self, item: dict) -> str:
+    def calculate_priority(self, item: Dict[str, Any]) -> str:
+        """
+        Calculates the priority level of an item based on its age, urgency, and criticality.
+
+        Args:
+            item: A dictionary containing item details including 'created_at',
+                  'urgency' (optional), and 'is_critical' (optional).
+
+        Returns:
+            A string representing the priority level: 'critical', 'high', 'medium', or 'low'.
+        """
         age_days = (datetime.utcnow() - item["created_at"]).days
         base_score = item.get("urgency", 0) * 10
 
@@ -24,7 +34,7 @@ class ItemService:
             return "medium"
         return "low"
 
-    def validate_item(self, data: dict) -> tuple:
+    def validate_item(self, data: Dict[str, Any]) -> Tuple[bool, List[str]]:
         errors = []
         if not data.get("name") or len(data["name"].strip()) == 0:
             errors.append("Name is required")
@@ -40,8 +50,8 @@ class ItemService:
         return len(errors) == 0, errors
 
     def batch_update_status(
-        self, ids: list, new_status: str, updated_by: str
-    ) -> dict:
+        self, ids: List[Any], new_status: str, updated_by: str
+    ) -> Dict[str, Any]:
         results = {"updated": [], "failed": [], "skipped": []}
         for id in ids:
             record = self.db.get(id)
