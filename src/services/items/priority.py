@@ -26,12 +26,17 @@ CRITICAL_BONUS = 50
 STALE_AGE_DAYS = 30
 STALE_AGE_WEIGHT = 0.5
 
+# Priority score thresholds for level classification.
+CRITICAL_THRESHOLD = 80
+HIGH_THRESHOLD = 50
+MEDIUM_THRESHOLD = 20
+
 # (inclusive lower bound, level), highest first. Scores below the lowest
 # bound fall through to LOW.
 _THRESHOLDS = (
-    (80, CRITICAL),
-    (50, HIGH),
-    (20, MEDIUM),
+    (CRITICAL_THRESHOLD, CRITICAL),
+    (HIGH_THRESHOLD, HIGH),
+    (MEDIUM_THRESHOLD, MEDIUM),
 )
 
 

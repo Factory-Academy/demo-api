@@ -63,12 +63,12 @@ def test_score_adds_staleness_beyond_threshold():
 @pytest.mark.parametrize(
     "value,level",
     [
-        (80, priority.CRITICAL),
-        (79.9, priority.HIGH),
-        (50, priority.HIGH),
-        (49.9, priority.MEDIUM),
-        (20, priority.MEDIUM),
-        (19.9, priority.LOW),
+        (priority.CRITICAL_THRESHOLD, priority.CRITICAL),
+        (priority.CRITICAL_THRESHOLD - 0.1, priority.HIGH),
+        (priority.HIGH_THRESHOLD, priority.HIGH),
+        (priority.HIGH_THRESHOLD - 0.1, priority.MEDIUM),
+        (priority.MEDIUM_THRESHOLD, priority.MEDIUM),
+        (priority.MEDIUM_THRESHOLD - 0.1, priority.LOW),
         (0, priority.LOW),
         (-5, priority.LOW),
     ],
