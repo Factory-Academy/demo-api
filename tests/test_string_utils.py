@@ -23,4 +23,4 @@ def test_slugify_hyphens():
 
 def test_slugify_empty():
     assert slugify("") == ""
-    assert slugify(None) == ""  # type: ignore
+    assert slugify(None) == ""
