@@ -8,6 +8,10 @@ def test_page_bounds_second_page_exact_boundary_regression():
     assert page_bounds(total_items=20, page=2, page_size=10) == (10, 20)
 
 
+def test_page_bounds_page_beyond_last_item_returns_empty_range():
+    assert page_bounds(total_items=20, page=3, page_size=10) == (20, 20)
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

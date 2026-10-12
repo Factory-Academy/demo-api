@@ -10,6 +10,6 @@ def page_bounds(total_items: int, page: int, page_size: int) -> tuple[int, int]:
     if page_size < 1:
         raise ValueError("page_size must be >= 1")
 
-    start = (page - 1) * page_size
+    start = min((page - 1) * page_size, total_items)
     end = min(start + page_size, total_items)
     return start, end
