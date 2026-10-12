@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
 from src.utils import paginate, ttl_cache
@@ -18,8 +18,14 @@ def find_item_by_id(item_id: int):
 
 
 @router.get("/", response_model=List[Item])
-async def list_items(offset: int = 0, limit: int = 100):
-    return paginate(items_db, offset=offset, limit=limit)
+async def list_items(
+    offset: int = Query(0, ge=0, description="The number of items to skip"),
+    limit: int = Query(100, gt=0, le=1000, description="The maximum number of items to return"),
+):
+    try:
+        return paginate(items_db, offset=offset, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{item_id}", response_model=Item)

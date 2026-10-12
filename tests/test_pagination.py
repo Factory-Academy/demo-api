@@ -1,3 +1,4 @@
+import pytest
 from src.utils.pagination import paginate
 
 
@@ -17,12 +18,29 @@ def test_paginate_defaults():
     assert result[-1] == 99
 
 
-def test_paginate_negative_values():
+def test_paginate_negative_offset():
     items = [1, 2, 3]
-    # Negative offset should be treated as 0
-    assert paginate(items, offset=-1, limit=2) == [1, 2]
-    # Negative limit should be treated as 0
-    assert paginate(items, offset=0, limit=-1) == []
+    with pytest.raises(ValueError, match="Offset cannot be negative"):
+        paginate(items, offset=-1, limit=2)
+
+
+def test_paginate_invalid_limit():
+    items = [1, 2, 3]
+    with pytest.raises(ValueError, match="Limit must be a positive integer"):
+        paginate(items, offset=0, limit=0)
+    with pytest.raises(ValueError, match="Limit must be a positive integer"):
+        paginate(items, offset=0, limit=-1)
+
+
+def test_paginate_max_limit():
+    items = list(range(2000))
+    with pytest.raises(ValueError, match="Limit cannot exceed 1000"):
+        paginate(items, offset=0, limit=1001)
+    
+    # Custom max_limit
+    assert len(paginate(items, offset=0, limit=50, max_limit=50)) == 50
+    with pytest.raises(ValueError, match="Limit cannot exceed 50"):
+        paginate(items, offset=0, limit=51, max_limit=50)
 
 
 def test_paginate_out_of_bounds():
