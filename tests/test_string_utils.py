@@ -1,4 +1,4 @@
-from src.utils.string_utils import slugify
+from src.utils.string_utils import collapse_whitespace, slugify
 
 
 def test_slugify_basic():
@@ -24,3 +24,8 @@ def test_slugify_hyphens():
 def test_slugify_empty():
     assert slugify("") == ""
     assert slugify(None) == ""  # type: ignore
+
+
+def test_collapse_whitespace():
+    assert collapse_whitespace("  Hello\t \nWorld  ") == "Hello World"
+    assert collapse_whitespace("") == ""

@@ -11,3 +11,12 @@ def slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^\w\s-]", "", text).strip().lower()
     return re.sub(r"[-\s]+", "-", text)
+
+
+def collapse_whitespace(text: str) -> str:
+    """
+    Trim and collapse all whitespace to single spaces.
+    """
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
