@@ -84,3 +84,24 @@ def test_regression_last_partial_page():
     page = items[start:end]
     assert len(page) == 5
     assert page == [20, 21, 22, 23, 24]
+
+
+def test_overflow_protection():
+    """Very large page numbers are handled safely without overflow."""
+    import sys
+    # Request a page number that would cause overflow if not checked
+    huge_page = sys.maxsize // 10 + 1
+    start, end = get_page_indices(huge_page, 10, 100)
+    assert start == 0
+    assert end == 0
+
+
+def test_large_page_within_bounds():
+    """Large but valid page numbers work correctly."""
+    import sys
+    # Use a large page number that won't overflow
+    large_page = sys.maxsize // 10000
+    start, end = get_page_indices(large_page, 100, sys.maxsize)
+    # Should return valid indices since we're within bounds
+    assert start == (large_page - 1) * 100
+    assert end == start + 100

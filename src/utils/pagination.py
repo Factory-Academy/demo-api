@@ -1,3 +1,4 @@
+import sys
 from typing import Tuple
 
 
@@ -25,6 +26,10 @@ def get_page_indices(page: int, page_size: int, total: int) -> Tuple[int, int]:
         (20, 25)
     """
     if page < 1 or page_size < 1 or total < 0:
+        return (0, 0)
+    
+    # Guard against integer overflow when computing start index
+    if page > sys.maxsize // page_size:
         return (0, 0)
     
     start = (page - 1) * page_size
