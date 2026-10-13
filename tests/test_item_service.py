@@ -95,6 +95,18 @@ def test_batch_update_empty_ids():
     assert db.saved_ids == []
 
 
+def test_batch_update_results_do_not_leak_between_calls():
+    db = FakeDB([{"id": 1, "status": "open"}])
+    svc = ItemService(db)
+
+    first = svc.batch_update_status([1, 999], "closed", "alice", now=NOW)
+    second = svc.batch_update_status([], "closed", "alice", now=NOW)
+
+    assert first["updated"] == [1]
+    assert first["failed"] == [{"id": 999, "reason": status.REASON_NOT_FOUND}]
+    assert second == {"updated": [], "failed": [], "skipped": []}
+
+
 def test_batch_update_defaults_now_to_a_datetime():
     db = FakeDB([{"id": 1, "status": "open"}])
     svc = ItemService(db)

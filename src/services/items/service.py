@@ -34,7 +34,7 @@ class ItemService:
         updated_by: str,
         now: Optional[datetime] = None,
     ) -> dict:
-        results: dict = {"updated": [], "failed": [], "skipped": []}
+        results: dict = status.empty_batch_results()
         for id in ids:
             record = self.db.get(id)
             outcome = status.classify_status_change(record, new_status)

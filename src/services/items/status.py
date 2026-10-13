@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import MutableMapping, Optional
+from typing import Any, MutableMapping, Optional
 
 # Reasons reported back to callers. Kept as constants to match the original
 # service's result payload exactly.
@@ -22,6 +22,23 @@ class StatusChangeOutcome(Enum):
     NOT_FOUND = "not_found"
     ALREADY_IN_STATE = "already_in_state"
     UPDATE = "update"
+
+
+def empty_batch_results(
+    updated: Optional[list[Any]] = None,
+    failed: Optional[list[dict[str, Any]]] = None,
+    skipped: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, list[Any]]:
+    """Return a new batch-result payload with isolated list values.
+
+    Optional seed values are copied into fresh lists. Using ``None`` defaults
+    (instead of mutable list defaults) ensures calls never share state.
+    """
+    return {
+        "updated": list(updated or []),
+        "failed": list(failed or []),
+        "skipped": list(skipped or []),
+    }
 
 
 def classify_status_change(
