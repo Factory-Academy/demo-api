@@ -7,9 +7,10 @@ decision rule to the pure modules in this package.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Iterable, Mapping, Optional
+from typing import Any, Mapping, Optional
 
 from src.services.items import priority, status, validation
+from src.services.items._batch_ids import as_id_list
 from src.services.items.validation import ValidationResult
 
 
@@ -29,13 +30,13 @@ class ItemService:
 
     def batch_update_status(
         self,
-        ids: Iterable,
+        ids: Any,
         new_status: str,
         updated_by: str,
         now: Optional[datetime] = None,
     ) -> dict:
         results: dict = status.empty_batch_results()
-        for id in ids:
+        for id in as_id_list(ids):
             record = self.db.get(id)
             outcome = status.classify_status_change(record, new_status)
             if outcome is status.StatusChangeOutcome.NOT_FOUND:
