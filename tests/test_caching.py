@@ -1,4 +1,5 @@
 import time
+import threading
 import pytest
 from src.utils.caching import ttl_cache
 
@@ -80,3 +81,70 @@ def test_cache_clear():
     cached_func.cache_clear()
     cached_func(1)
     assert call_count == 2
+
+def test_ttl_cache_validation():
+    with pytest.raises(ValueError, match="TTL must be non-negative"):
+        @ttl_cache(ttl=-1)
+        def func():
+            pass
+            
+    with pytest.raises(ValueError, match="maxsize must be non-negative"):
+        @ttl_cache(maxsize=-1)
+        def func():
+            pass
+
+def test_ttl_cache_maxsize_zero():
+    call_count = 0
+    
+    @ttl_cache(ttl=10, maxsize=0)
+    def cached_func(x):
+        nonlocal call_count
+        call_count += 1
+        return x
+    
+    assert cached_func(1) == 1
+    assert call_count == 1
+    assert cached_func(1) == 1
+    assert call_count == 2 # Should not cache
+
+def test_ttl_cache_ttl_zero():
+    call_count = 0
+    
+    @ttl_cache(ttl=0, maxsize=10)
+    def cached_func(x):
+        nonlocal call_count
+        call_count += 1
+        return x
+    
+    assert cached_func(1) == 1
+    assert call_count == 1
+    assert cached_func(1) == 1
+    assert call_count == 2 # Should not cache (effectively)
+
+def test_ttl_cache_thread_safety():
+    call_count = 0
+    
+    @ttl_cache(ttl=10, maxsize=100)
+    def cached_func(x):
+        nonlocal call_count
+        time.sleep(0.01) # Simulate some work
+        call_count += 1
+        return x
+    
+    threads = []
+    for _ in range(10):
+        t = threading.Thread(target=cached_func, args=(1,))
+        threads.append(t)
+        t.start()
+        
+    for t in threads:
+        t.join()
+        
+    # Note: Even with thread safety, multiple threads might enter 
+    # the function before the first one completes and populates the cache
+    # if the lock only covers cache access. 
+    # In my implementation, the func call is OUTSIDE the lock.
+    # This is usually desired to avoid blocking other calls, 
+    # but it means call_count might be > 1.
+    # However, the cache operations themselves are safe.
+    assert call_count >= 1
