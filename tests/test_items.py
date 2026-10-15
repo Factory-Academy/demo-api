@@ -33,3 +33,10 @@ def test_calculate_priority_optional_age_bonus():
 
     assert service.calculate_priority(item) == "high"
     assert service.calculate_priority(item, include_age_bonus=False) == "medium"
+
+
+def test_calculate_priority_without_created_at_when_age_bonus_disabled():
+    service = ItemService(db=None)
+    item = {"urgency": 2}
+
+    assert service.calculate_priority(item, include_age_bonus=False) == "medium"
