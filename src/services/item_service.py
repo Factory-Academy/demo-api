@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from src.utils.caching import ttl_cache
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db: Any) -> None:
+        """Initialize the service with the backing database-like dependency."""
         self.db = db
 
     @staticmethod
