@@ -3,6 +3,16 @@ from typing import Optional
 from src.utils.caching import ttl_cache
 
 
+def retry(func, attempts: int = 3, exceptions: tuple = (Exception,)):
+    last_error = None
+    for _ in range(attempts):
+        try:
+            return func()
+        except exceptions as error:
+            last_error = error
+    raise last_error
+
+
 class ItemService:
     def __init__(self, db):
         self.db = db
