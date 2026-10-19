@@ -1,3 +1,4 @@
+import math
 from datetime import datetime
 
 import pytest
@@ -36,6 +37,21 @@ class TestPriority:
     )
     def test_from_score_thresholds(self, score, expected):
         assert Priority.from_score(score) is expected
+
+    def test_accepts_numeric_strings(self):
+        assert Priority.from_score("85") is Priority.CRITICAL
+
+    @pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+    def test_rejects_non_finite_scores(self, bad):
+        # NaN compares False against every threshold, so it must not silently
+        # fall through to LOW.
+        with pytest.raises(ValueError, match="finite"):
+            Priority.from_score(bad)
+
+    @pytest.mark.parametrize("bad", [None, "high", object()])
+    def test_rejects_non_numeric_scores(self, bad):
+        with pytest.raises(ValueError, match="numeric"):
+            Priority.from_score(bad)
 
     def test_values_compare_equal_to_plain_strings(self):
         # Backwards compatibility with the old string return values.
@@ -107,6 +123,44 @@ class TestItemRecord:
                 {"id": 1, "name": "Bad", "due_date": "not-a-date"}
             )
 
+    @pytest.mark.parametrize("missing", ["id", "name"])
+    def test_from_mapping_requires_id_and_name(self, missing):
+        data = {"id": 1, "name": "Present"}
+        del data[missing]
+        with pytest.raises(ValueError, match=f"Missing required field '{missing}'"):
+            ItemRecord.from_mapping(data)
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [("true", True), ("false", False), ("0", False), ("yes", True), (0, False)],
+    )
+    def test_from_mapping_coerces_boolean_strings(self, raw, expected):
+        # The old bool(str) coercion made "false" truthy; this must not.
+        record = ItemRecord.from_mapping(
+            {"id": 1, "name": "Flag", "is_critical": raw}
+        )
+        assert record.is_critical is expected
+
+    def test_from_mapping_rejects_unknown_boolean_string(self):
+        with pytest.raises(ValueError, match="Invalid boolean"):
+            ItemRecord.from_mapping(
+                {"id": 1, "name": "Flag", "is_critical": "maybe"}
+            )
+
+    def test_from_mapping_rejects_bad_integer(self):
+        with pytest.raises(ValueError, match="Invalid integer for 'id'"):
+            ItemRecord.from_mapping({"id": "seven", "name": "Bad"})
+
+    def test_from_mapping_blank_date_falls_back_to_default(self):
+        record = ItemRecord.from_mapping(
+            {"id": 1, "name": "Blank", "due_date": "   "}
+        )
+        assert record.due_date is None
+
+    def test_with_changes_rejects_unknown_field(self):
+        with pytest.raises(ValueError, match="Unknown field for ItemRecord"):
+            _item().with_changes(nonexistent="x")
+
 
 class TestValidationResult:
     def test_ok_is_truthy(self):
@@ -163,6 +217,28 @@ class TestWidgetDomain:
         assert updated.priority == 5
         assert updated.updated_at == stamp
         assert record.priority == 0
+
+    def test_widget_record_rejects_unknown_change(self):
+        now = datetime(2024, 1, 1)
+        record = WidgetRecord(
+            id=1, name="W", item_id=2, created_at=now, updated_at=now
+        )
+        with pytest.raises(ValueError, match="Unknown field for WidgetRecord"):
+            record.with_changes(bogus=1)
+
+    def test_widget_from_mapping_coerces_and_defaults(self):
+        record = WidgetRecord.from_mapping(
+            {"id": "1", "name": "W", "item_id": "2", "priority": "5"}
+        )
+        assert record.id == 1
+        assert record.item_id == 2
+        assert record.priority == 5
+        assert record.notes is None
+        assert isinstance(record.created_at, datetime)
+
+    def test_widget_from_mapping_requires_item_id(self):
+        with pytest.raises(ValueError, match="Missing required field 'item_id'"):
+            WidgetRecord.from_mapping({"id": 1, "name": "W"})
 
     def test_widget_stats_to_dict(self):
         stats = WidgetStats(id=3, complexity_score=4.5, last_analyzed="t")

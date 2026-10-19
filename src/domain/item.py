@@ -4,6 +4,14 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from typing import Any, List, Mapping, Optional
 
+from src.domain.coercion import (
+    coerce_bool,
+    coerce_datetime,
+    coerce_int,
+    ensure_known_fields,
+    require,
+)
+
 
 @dataclass(frozen=True)
 class ItemRecord:
@@ -35,6 +43,7 @@ class ItemRecord:
 
     def with_changes(self, now: Optional[datetime] = None, **changes: Any) -> "ItemRecord":
         """Return a copy with ``changes`` applied and ``updated_at`` refreshed."""
+        ensure_known_fields(self, changes)
         stamped = now if now is not None else datetime.utcnow()
         return replace(self, updated_at=stamped, **changes)
 
@@ -52,36 +61,33 @@ class ItemRecord:
     def from_mapping(cls, data: Mapping[str, Any]) -> "ItemRecord":
         """Build a record from a loose mapping, coercing timestamp strings.
 
-        Useful when migrating previously persisted ``dict`` payloads. Raises
-        ``ValueError`` if a date field is present but not parseable.
+        Useful when migrating previously persisted ``dict`` payloads. ``id`` and
+        ``name`` are required; missing ones raise ``ValueError`` rather than a
+        bare ``KeyError``. Numeric, boolean, and date fields are coerced from
+        their loose string forms and raise ``ValueError`` when unparseable.
         """
         now = datetime.utcnow()
         return cls(
-            id=int(data["id"]),
-            name=data["name"],
-            created_at=_coerce_datetime(data.get("created_at"), default=now),
-            updated_at=_coerce_datetime(data.get("updated_at"), default=now),
+            id=coerce_int(require(data, "id"), field="id"),
+            name=require(data, "name"),
+            created_at=coerce_datetime(
+                data.get("created_at"), field="created_at", default=now
+            ),
+            updated_at=coerce_datetime(
+                data.get("updated_at"), field="updated_at", default=now
+            ),
             description=data.get("description"),
             status=data.get("status", "active"),
-            urgency=int(data.get("urgency", 0)),
-            is_critical=bool(data.get("is_critical", False)),
-            quantity=int(data.get("quantity", 0)),
-            due_date=_coerce_datetime(data.get("due_date"), default=None),
+            urgency=coerce_int(data.get("urgency", 0), field="urgency"),
+            is_critical=coerce_bool(
+                data.get("is_critical", False), field="is_critical"
+            ),
+            quantity=coerce_int(data.get("quantity", 0), field="quantity"),
+            due_date=coerce_datetime(
+                data.get("due_date"), field="due_date", default=None
+            ),
             updated_by=data.get("updated_by"),
         )
-
-
-def _coerce_datetime(
-    value: Any, default: Optional[datetime]
-) -> Optional[datetime]:
-    if value is None:
-        return default
-    if isinstance(value, datetime):
-        return value
-    try:
-        return datetime.fromisoformat(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError("Invalid date format") from error
 
 
 @dataclass

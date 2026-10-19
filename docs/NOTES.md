@@ -37,6 +37,31 @@ behavior.
   and from plain mappings for the API boundary and for migrating previously
   persisted payloads (`from_mapping` raises `ValueError` on an unparseable date).
 
+### Boundary coercion and edge cases
+
+`src/domain/coercion.py` centralizes how loose, externally-sourced values are
+turned into typed record fields, so every `from_mapping` parses the same way and
+fails the same way:
+
+- **Booleans.** `coerce_bool` understands the usual string spellings
+  (`"true"/"1"/"yes"` and `"false"/"0"/"no"/""`) and rejects anything else.
+  This closes the trap where `bool("false")` is `True`, which previously could
+  flip `is_critical` on when migrating stored payloads.
+- **Integers.** `coerce_int` rejects `bool` (an `int` subclass) and unparseable
+  values with a field-named `ValueError` instead of a bare `int()` message.
+- **Dates.** `coerce_datetime` treats `None` and blank strings as "not set"
+  (falling back to the default) and raises on a non-blank, non-ISO string.
+- **Required fields.** `require` turns a missing `id`/`name`/`item_id` into a
+  clear `ValueError` rather than a `KeyError`.
+- **Priority scores.** `Priority.from_score` rejects non-numeric and non-finite
+  scores. `NaN` is the dangerous case: it compares `False` against every
+  threshold and would otherwise be silently bucketed as `LOW`.
+- **Safe updates.** `with_changes` guards against unknown field names via
+  `ensure_known_fields`, so a typo surfaces the offending name and record type
+  instead of a generic `dataclasses.replace` `TypeError`.
+- **Validation.** `ItemService.validate_item` also rejects a negative
+  `urgency`, which would otherwise push the priority score below zero.
+
 ### Migrated call sites
 
 - `src/services/item_service.py` — operates on `ItemRecord`, returns `Priority`,
@@ -49,5 +74,6 @@ behavior.
 ### Tests
 
 - `tests/test_domain.py` — dataclass behavior and edge cases.
+- `tests/test_coercion.py` — the boundary coercion helpers in isolation.
 - `tests/test_item_service.py` — scoring thresholds, validation rules, and batch
   update outcomes against an in-memory `FakeDB`.

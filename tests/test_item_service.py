@@ -106,11 +106,17 @@ class TestValidateItem:
         record = _item(due_date=datetime(2024, 12, 31))
         assert service.validate_item(record, now=reference)
 
+    def test_negative_urgency_rejected(self):
+        service = ItemService(FakeDB())
+        result = service.validate_item(_item(urgency=-1))
+        assert not result
+        assert "Urgency cannot be negative" in result.errors
+
     def test_multiple_errors_accumulate(self):
         service = ItemService(FakeDB())
-        record = _item(name="", quantity=-5)
+        record = _item(name="", quantity=-5, urgency=-2)
         result = service.validate_item(record)
-        assert len(result.errors) == 2
+        assert len(result.errors) == 3
 
 
 class TestBatchUpdateStatus:

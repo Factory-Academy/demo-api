@@ -49,6 +49,10 @@ class ItemService:
             errors.append("Name is required")
         if record.quantity < 0:
             errors.append("Quantity cannot be negative")
+        if record.urgency < 0:
+            # A negative urgency would drag the priority score below zero and
+            # quietly bucket an item as LOW, so reject it at the boundary.
+            errors.append("Urgency cannot be negative")
         if record.due_date is not None and record.due_date < reference:
             errors.append("Due date cannot be in the past")
 
