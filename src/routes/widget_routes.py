@@ -1,10 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from datetime import datetime
 from typing import List
+
+from fastapi import APIRouter, HTTPException
+
+from src.domain import WidgetRecord
 from src.models.widget import Widget, WidgetCreate
 
 router = APIRouter()
 
-widgets_db: List[dict] = []
+widgets_db: List[WidgetRecord] = []
 next_id = 1
 
 
@@ -16,7 +20,7 @@ async def list_widgets():
 @router.get("/{widget_id}", response_model=Widget)
 async def get_widget(widget_id: int):
     for widget in widgets_db:
-        if widget["id"] == widget_id:
+        if widget.id == widget_id:
             return widget
     raise HTTPException(status_code=404, detail="Widget not found")
 
@@ -24,14 +28,14 @@ async def get_widget(widget_id: int):
 @router.post("/", response_model=Widget, status_code=201)
 async def create_widget(widget: WidgetCreate):
     global next_id
-    from datetime import datetime
 
-    db_widget = {
+    now = datetime.utcnow()
+    db_widget = WidgetRecord(
+        id=next_id,
+        created_at=now,
+        updated_at=now,
         **widget.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
+    )
     widgets_db.append(db_widget)
     next_id += 1
     return db_widget
@@ -41,15 +45,11 @@ async def create_widget(widget: WidgetCreate):
 async def get_widget_stats(widget_id: int):
     from src.services.widget_service import WidgetService
     service = WidgetService()
-    
+
     # Verify widget exists
-    found = False
-    for widget in widgets_db:
-        if widget["id"] == widget_id:
-            found = True
-            break
-    
+    found = any(widget.id == widget_id for widget in widgets_db)
+
     if not found:
         raise HTTPException(status_code=404, detail="Widget not found")
-    
+
     return service.get_complex_widget_stats(widget_id)
