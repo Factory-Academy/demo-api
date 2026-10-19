@@ -31,3 +31,27 @@ def test_retry_raises_after_exhausting_retries():
         assert False, "Expected ValueError to be raised"
 
     assert attempts["count"] == 2
+
+
+def test_retry_calls_on_retry_callback():
+    attempts = {"count": 0}
+    callback_calls = []
+
+    def flaky_operation():
+        attempts["count"] += 1
+        if attempts["count"] < 2:
+            raise ValueError("temporary failure")
+        return "ok"
+
+    def on_retry(error: Exception, attempt: int):
+        callback_calls.append((str(error), attempt))
+
+    result = retry(
+        flaky_operation,
+        retries=1,
+        retry_on=(ValueError,),
+        on_retry=on_retry,
+    )
+
+    assert result == "ok"
+    assert callback_calls == [("temporary failure", 1)]
