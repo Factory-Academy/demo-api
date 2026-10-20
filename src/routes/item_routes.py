@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.db_helpers import find_by_id, create_record
 
 router = APIRouter()
 
@@ -15,23 +16,16 @@ async def list_items():
 
 @router.get("/{item_id}", response_model=Item)
 async def get_item(item_id: int):
-    for item in items_db:
-        if item["id"] == item_id:
-            return item
-    raise HTTPException(status_code=404, detail="Item not found")
+    item = find_by_id(items_db, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
 
 
 @router.post("/", response_model=Item, status_code=201)
 async def create_item(item: ItemCreate):
     global next_id
-    from datetime import datetime
-
-    db_item = {
-        **item.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
+    db_item = create_record(item.model_dump(), next_id)
     items_db.append(db_item)
     next_id += 1
     return db_item
@@ -52,8 +46,8 @@ async def update_item(item_id: int, item: ItemUpdate):
 
 @router.delete("/{item_id}")
 async def delete_item(item_id: int):
-    for i, item in enumerate(items_db):
-        if item["id"] == item_id:
-            items_db.pop(i)
-            return {"status": "deleted"}
-    raise HTTPException(status_code=404, detail="Item not found")
+    item = find_by_id(items_db, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+    items_db.remove(item)
+    return {"status": "deleted"}
