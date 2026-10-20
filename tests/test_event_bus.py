@@ -1,5 +1,6 @@
 import threading
 from dataclasses import dataclass
+from datetime import timezone
 from typing import List
 
 import pytest
@@ -94,6 +95,30 @@ def test_subscribe_is_idempotent_for_same_handler():
 
     bus.publish(SampleEvent(value=3))
     assert calls == [3]
+
+
+def test_subscribe_same_handler_ignores_conflicting_once_flag():
+    bus = EventBus()
+    calls: List[int] = []
+
+    def handler(event: SampleEvent) -> None:
+        calls.append(event.value)
+
+    # The persistent subscription wins; a later ``once=True`` call must not add
+    # a duplicate (which would deliver twice) nor downgrade it to one-shot.
+    first = bus.subscribe(SampleEvent, handler)
+    second = bus.subscribe(SampleEvent, handler, once=True)
+
+    assert first is second
+    assert first.once is False
+    assert bus.subscriber_count(SampleEvent) == 1
+
+    bus.publish(SampleEvent(value=1))
+    bus.publish(SampleEvent(value=2))
+
+    # Each event delivered exactly once, and the handler is still subscribed.
+    assert calls == [1, 2]
+    assert bus.subscriber_count(SampleEvent) == 1
 
 
 def test_unsubscribe_via_handle_stops_delivery():
@@ -246,6 +271,35 @@ def test_event_metadata_defaults_are_unique():
     assert first.event_id != second.event_id
     assert first.occurred_at is not None
     assert SampleEvent().name == "SampleEvent"
+
+
+def test_event_occurred_at_is_timezone_aware_utc():
+    event = SampleEvent()
+    # A naive datetime (the old ``utcnow`` behavior) would serialize without an
+    # offset and compare unsafely against aware timestamps.
+    assert event.occurred_at.tzinfo is not None
+    assert event.occurred_at.utcoffset() == timezone.utc.utcoffset(None)
+    # ISO output carries the explicit UTC offset.
+    assert event.occurred_at.isoformat().endswith("+00:00")
+
+
+def test_event_sequence_is_monotonic_and_unique():
+    events = [SampleEvent() for _ in range(5)]
+    sequences = [e.sequence for e in events]
+
+    # Strictly increasing, so later-built events always sort after earlier ones.
+    assert sequences == sorted(sequences)
+    assert len(set(sequences)) == len(sequences)
+    assert all(b > a for a, b in zip(sequences, sequences[1:]))
+
+
+def test_sequence_is_excluded_from_event_equality():
+    # Two events sharing identity fields but built at different times (hence
+    # different sequences) must still differ, because ``event_id`` is unique.
+    first = SampleEvent(value=1)
+    second = SampleEvent(value=1)
+    assert first != second
+    assert first.sequence != second.sequence
 
 
 def test_domain_event_hierarchy():

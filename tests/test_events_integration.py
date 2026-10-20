@@ -47,6 +47,34 @@ def test_audit_log_records_item_lifecycle():
     ]
     assert entries[1]["payload"] == {"changes": {"status": "done"}}
     assert all(e["item_id"] == 1 for e in entries)
+    # Each entry carries the event sequence, and the metadata never leaks into
+    # the subtype-specific payload.
+    assert all("sequence" not in e["payload"] for e in entries)
+    sequences = [e["sequence"] for e in entries]
+    assert sequences == sorted(sequences)
+    assert len(set(sequences)) == len(sequences)
+
+
+def test_audit_entries_are_ordered_by_sequence_not_append_order():
+    audit = AuditLog()
+
+    # Build events in order (so sequences ascend) but record them in reverse,
+    # mimicking an out-of-order interleaving under concurrent publishing.
+    events = [
+        ItemCreated(item_id=1),
+        ItemUpdated(item_id=1, changes={"status": "done"}),
+        ItemDeleted(item_id=1),
+    ]
+    for event in reversed(events):
+        audit.record(event)
+
+    entries = audit.entries()
+    assert [e["event"] for e in entries] == [
+        "ItemCreated",
+        "ItemUpdated",
+        "ItemDeleted",
+    ]
+    assert [e["sequence"] for e in entries] == [e.sequence for e in events]
 
 
 def test_audit_attach_is_idempotent():

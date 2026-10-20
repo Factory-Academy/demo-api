@@ -1,7 +1,22 @@
+import itertools
+import threading
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable
+
+# Process-wide monotonic counter used to stamp every event with a strictly
+# increasing sequence number. ``occurred_at`` cannot order two events created
+# within the same clock tick, and its resolution varies by platform, so
+# consumers that need the exact publish order read ``sequence`` instead of
+# comparing timestamps.
+_sequence_lock = threading.Lock()
+_sequence_counter = itertools.count(1)
+
+
+def _next_sequence() -> int:
+    with _sequence_lock:
+        return next(_sequence_counter)
 
 
 @dataclass(frozen=True)
@@ -15,10 +30,22 @@ class Event:
 
     Fields are keyword-friendly with defaults so subclasses can add required
     payload fields ahead of these without ordering conflicts.
+
+    Metadata:
+        event_id: A unique identifier for this event instance.
+        occurred_at: Timezone-aware UTC timestamp of when the event was built.
+        sequence: A process-wide, strictly increasing ordinal. Unlike
+            ``occurred_at`` it never ties, so it is the canonical key for
+            reconstructing publish order.
     """
 
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    occurred_at: datetime = field(default_factory=datetime.utcnow)
+    occurred_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    # Excluded from equality/hash so two events are distinguished by their
+    # ``event_id``, not by an ordinal that is incidental to their identity.
+    sequence: int = field(default_factory=_next_sequence, compare=False)
 
     @property
     def name(self) -> str:

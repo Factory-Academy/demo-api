@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
@@ -37,13 +38,13 @@ async def get_item(item_id: int):
 @router.post("/", response_model=Item, status_code=201)
 async def create_item(item: ItemCreate):
     global next_id
-    from datetime import datetime
 
+    now = datetime.now(timezone.utc)
     db_item = {
         **item.model_dump(),
         "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": now,
+        "updated_at": now,
     }
     items_db.append(db_item)
     next_id += 1
@@ -53,12 +54,10 @@ async def create_item(item: ItemCreate):
 
 @router.put("/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: ItemUpdate):
-    from datetime import datetime
-
     for i, existing in enumerate(items_db):
         if existing["id"] == item_id:
             update_data = item.model_dump(exclude_unset=True)
-            update_data["updated_at"] = datetime.utcnow()
+            update_data["updated_at"] = datetime.now(timezone.utc)
             items_db[i] = {**existing, **update_data}
             get_event_bus().publish(
                 ItemUpdated(item_id=item_id, changes=update_data)

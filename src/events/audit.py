@@ -40,6 +40,7 @@ class AuditLog:
             "event": event.name,
             "event_id": event.event_id,
             "occurred_at": event.occurred_at.isoformat(),
+            "sequence": event.sequence,
             "item_id": event.item_id,
             "payload": _event_payload(event),
         }
@@ -50,9 +51,16 @@ class AuditLog:
                 del self._entries[: len(self._entries) - self._max_entries]
 
     def entries(self) -> List[Dict[str, object]]:
-        """Return a shallow copy of the recorded entries, oldest first."""
+        """Return a copy of the recorded entries, oldest first.
+
+        Entries are ordered by the event ``sequence`` rather than by the order
+        they happened to be appended. The two agree for serial publishing, but
+        under concurrent publishes two threads may append in an order that does
+        not match the true publish order; sorting by ``sequence`` restores a
+        single, deterministic ordering for consumers.
+        """
         with self._lock:
-            return list(self._entries)
+            return sorted(self._entries, key=lambda entry: entry["sequence"])
 
     def clear(self) -> None:
         with self._lock:
@@ -62,7 +70,7 @@ class AuditLog:
 def _event_payload(event: ItemEvent) -> Dict[str, object]:
     """Extract the subtype-specific fields, excluding the common metadata."""
     data = asdict(event)
-    for common in ("event_id", "occurred_at", "item_id"):
+    for common in ("event_id", "occurred_at", "sequence", "item_id"):
         data.pop(common, None)
     return data
 

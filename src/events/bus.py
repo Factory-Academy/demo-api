@@ -110,7 +110,11 @@ class EventBus:
             A :class:`Subscription` handle that can be used to unsubscribe.
 
         Subscribing the same handler to the same type more than once is
-        idempotent: the existing subscription is returned unchanged.
+        idempotent: the existing subscription is returned unchanged, regardless
+        of the ``once`` flag passed on the later call. Keying idempotency on the
+        handler alone (not on ``handler`` plus ``once``) avoids registering a
+        duplicate that would deliver the same event twice and prevents a second
+        call from silently flipping a persistent handler into a one-shot one.
         """
         if not (isinstance(event_type, type) and issubclass(event_type, Event)):
             raise TypeError("event_type must be a subclass of Event")
@@ -120,7 +124,7 @@ class EventBus:
         with self._lock:
             handlers = self._subscriptions.setdefault(event_type, [])
             for existing in handlers:
-                if existing.handler == handler and existing.once == once:
+                if existing.handler == handler:
                     return existing
             subscription = Subscription(self, event_type, handler, once)
             handlers.append(subscription)

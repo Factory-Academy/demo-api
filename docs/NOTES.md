@@ -17,7 +17,7 @@ without knowing or caring who reacts.
 ### Pieces
 
 - `base.py` — `Event`, the frozen dataclass every event derives from. It
-  carries shared metadata (`event_id`, `occurred_at`, `name`).
+  carries shared metadata (`event_id`, `occurred_at`, `sequence`, `name`).
 - `domain.py` — concrete item events: `ItemCreated`, `ItemUpdated`,
   `ItemDeleted`, all sharing the `ItemEvent` base.
 - `bus.py` — `EventBus` plus a process-wide default accessible via
@@ -37,7 +37,18 @@ without knowing or caring who reacts.
   multiple threads; the handler list is snapshotted before dispatch.
 - **Unsubscribe cleanly.** `subscribe` returns a `Subscription` handle with
   `.unsubscribe()`; it also works as a context manager and supports one-shot
-  delivery via `once=True`.
+  delivery via `once=True`. Re-subscribing the same handler to the same type is
+  idempotent on the handler alone: the first subscription is returned unchanged
+  and a later `once` flag is ignored, so a handler is never registered (and
+  delivered) twice.
+- **Timezone-aware timestamps.** `occurred_at` is an aware UTC datetime
+  (`datetime.now(timezone.utc)`), so it serializes with an explicit `+00:00`
+  offset and compares safely against other aware timestamps.
+- **Deterministic ordering.** Every event also gets a process-wide, strictly
+  increasing `sequence`. Because `occurred_at` can tie within one clock tick,
+  `sequence` is the canonical key for publish order; the `AuditLog` returns its
+  entries sorted by it, which keeps the trail stable even under concurrent
+  publishes.
 
 ### Usage
 
