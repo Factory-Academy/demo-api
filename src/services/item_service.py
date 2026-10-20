@@ -11,7 +11,8 @@ class ItemService:
     @staticmethod
     @ttl_cache(ttl=300, maxsize=100)
     def calculate_priority(item: dict) -> str:
-        age_days = (datetime.utcnow() - item["created_at"]).days
+        created_at = item.get("created_at", datetime.utcnow())
+        age_days = (datetime.utcnow() - created_at).days
         base_score = item.get("urgency", 0) * 10
 
         if item.get("is_critical"):
