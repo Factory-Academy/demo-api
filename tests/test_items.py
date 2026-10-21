@@ -22,3 +22,11 @@ def test_create_item():
     )
     assert response.status_code == 201
     assert response.json()["name"] == "Test Item"
+
+
+def test_create_item_rejects_empty_name():
+    response = client.post(
+        "/items/",
+        json={"name": "", "description": "A test item"},
+    )
+    assert response.status_code == 422
