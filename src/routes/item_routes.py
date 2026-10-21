@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
+from src.error_handling import get_resource_by_id
 from src.models.item import Item, ItemCreate, ItemUpdate
 
 router = APIRouter()
@@ -15,10 +16,7 @@ async def list_items():
 
 @router.get("/{item_id}", response_model=Item)
 async def get_item(item_id: int):
-    for item in items_db:
-        if item["id"] == item_id:
-            return item
-    raise HTTPException(status_code=404, detail="Item not found")
+    return get_resource_by_id(items_db, resource="Item", resource_id=item_id)
 
 
 @router.post("/", response_model=Item, status_code=201)
