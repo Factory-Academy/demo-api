@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import List
+from src.error_handling import get_resource_by_id
 from src.models.widget import Widget, WidgetCreate
 
 router = APIRouter()
@@ -15,10 +16,7 @@ async def list_widgets():
 
 @router.get("/{widget_id}", response_model=Widget)
 async def get_widget(widget_id: int):
-    for widget in widgets_db:
-        if widget["id"] == widget_id:
-            return widget
-    raise HTTPException(status_code=404, detail="Widget not found")
+    return get_resource_by_id(widgets_db, resource="Widget", resource_id=widget_id)
 
 
 @router.post("/", response_model=Widget, status_code=201)
