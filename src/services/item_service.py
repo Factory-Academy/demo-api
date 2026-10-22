@@ -6,9 +6,9 @@ class ItemService:
     def __init__(self, db):
         self.db = db
 
-    def calculate_priority(self, item: dict) -> str:
+    def calculate_priority(self, item: dict, multiplier: float = 1.0) -> str:
         age_days = (datetime.utcnow() - item["created_at"]).days
-        base_score = item.get("urgency", 0) * 10
+        base_score = item.get("urgency", 0) * 10 * multiplier
 
         if item.get("is_critical"):
             base_score += 50
