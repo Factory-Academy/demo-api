@@ -1,59 +1,74 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Mapping, Optional
+
+from src.domain.models import ItemRecord
+from src.domain.priority import Priority, compute_priority
+from src.domain.repository import InMemoryRepository
+from src.domain.results import BatchOutcome, BatchUpdateResult, ValidationResult
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db: InMemoryRepository):
         self.db = db
 
-    def calculate_priority(self, item: dict) -> str:
-        age_days = (datetime.utcnow() - item["created_at"]).days
-        base_score = item.get("urgency", 0) * 10
+    def calculate_priority(
+        self, item: ItemRecord, *, now: Optional[datetime] = None
+    ) -> Priority:
+        return compute_priority(item, now=now)
 
-        if item.get("is_critical"):
-            base_score += 50
-
-        if age_days > 30:
-            base_score += age_days * 0.5
-
-        if base_score >= 80:
-            return "critical"
-        elif base_score >= 50:
-            return "high"
-        elif base_score >= 20:
-            return "medium"
-        return "low"
-
-    def validate_item(self, data: dict) -> tuple:
+    def validate_item(
+        self, data: Mapping[str, Any], *, now: Optional[datetime] = None
+    ) -> ValidationResult:
+        moment = now or datetime.utcnow()
         errors = []
-        if not data.get("name") or len(data["name"].strip()) == 0:
+
+        name = data.get("name")
+        if not name or len(name.strip()) == 0:
             errors.append("Name is required")
+
         if data.get("quantity", 0) < 0:
             errors.append("Quantity cannot be negative")
-        if data.get("due_date"):
-            try:
-                due = datetime.fromisoformat(data["due_date"])
-                if due < datetime.utcnow():
-                    errors.append("Due date cannot be in the past")
-            except ValueError:
+
+        due_date = data.get("due_date")
+        if due_date:
+            due = self._parse_due_date(due_date)
+            if due is None:
                 errors.append("Invalid date format")
-        return len(errors) == 0, errors
+            elif due < moment:
+                errors.append("Due date cannot be in the past")
+
+        return ValidationResult(is_valid=len(errors) == 0, errors=errors)
 
     def batch_update_status(
-        self, ids: list, new_status: str, updated_by: str
-    ) -> dict:
-        results = {"updated": [], "failed": [], "skipped": []}
+        self,
+        ids: list,
+        new_status: str,
+        updated_by: str,
+        *,
+        now: Optional[datetime] = None,
+    ) -> BatchUpdateResult:
+        moment = now or datetime.utcnow()
+        result = BatchUpdateResult()
         for id in ids:
             record = self.db.get(id)
             if record is None:
-                results["failed"].append({"id": id, "reason": "not found"})
+                result.failed.append(BatchOutcome(id=id, reason="not found"))
                 continue
-            if record.get("status") == new_status:
-                results["skipped"].append({"id": id, "reason": "already in state"})
+            if record.status == new_status:
+                result.skipped.append(BatchOutcome(id=id, reason="already in state"))
                 continue
-            record["status"] = new_status
-            record["updated_by"] = updated_by
-            record["updated_at"] = datetime.utcnow()
+            record.status = new_status
+            record.updated_by = updated_by
+            record.updated_at = moment
             self.db.save(record)
-            results["updated"].append(id)
-        return results
+            result.updated.append(id)
+        return result
+
+    @staticmethod
+    def _parse_due_date(value: Any) -> Optional[datetime]:
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(value)
+        except (ValueError, TypeError):
+            return None
