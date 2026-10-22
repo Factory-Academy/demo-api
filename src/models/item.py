@@ -1,10 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
 
 class ItemBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     description: Optional[str] = None
     status: str = "active"
 
