@@ -1,11 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from datetime import datetime
 from typing import List
+
+from fastapi import APIRouter, HTTPException
+
+from src.domain.models import ItemRecord
 from src.models.item import Item, ItemCreate, ItemUpdate
 
 router = APIRouter()
 
-items_db: List[dict] = []
+items_db: List[ItemRecord] = []
 next_id = 1
+
+
+def _find(item_id: int) -> int:
+    for index, record in enumerate(items_db):
+        if record.id == item_id:
+            return index
+    raise HTTPException(status_code=404, detail="Item not found")
 
 
 @router.get("/", response_model=List[Item])
@@ -15,45 +26,27 @@ async def list_items():
 
 @router.get("/{item_id}", response_model=Item)
 async def get_item(item_id: int):
-    for item in items_db:
-        if item["id"] == item_id:
-            return item
-    raise HTTPException(status_code=404, detail="Item not found")
+    return items_db[_find(item_id)]
 
 
 @router.post("/", response_model=Item, status_code=201)
 async def create_item(item: ItemCreate):
     global next_id
-    from datetime import datetime
-
-    db_item = {
-        **item.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-    items_db.append(db_item)
+    record = ItemRecord.create(next_id, item.model_dump(), now=datetime.utcnow())
+    items_db.append(record)
     next_id += 1
-    return db_item
+    return record
 
 
 @router.put("/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: ItemUpdate):
-    from datetime import datetime
-
-    for i, existing in enumerate(items_db):
-        if existing["id"] == item_id:
-            update_data = item.model_dump(exclude_unset=True)
-            update_data["updated_at"] = datetime.utcnow()
-            items_db[i] = {**existing, **update_data}
-            return items_db[i]
-    raise HTTPException(status_code=404, detail="Item not found")
+    index = _find(item_id)
+    changes = item.model_dump(exclude_unset=True)
+    items_db[index].apply_update(changes, now=datetime.utcnow())
+    return items_db[index]
 
 
 @router.delete("/{item_id}")
 async def delete_item(item_id: int):
-    for i, item in enumerate(items_db):
-        if item["id"] == item_id:
-            items_db.pop(i)
-            return {"status": "deleted"}
-    raise HTTPException(status_code=404, detail="Item not found")
+    items_db.pop(_find(item_id))
+    return {"status": "deleted"}
