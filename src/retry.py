@@ -11,6 +11,8 @@ def retry(
 ) -> T:
     if attempts < 1:
         raise ValueError("attempts must be at least 1")
+    if not exceptions:
+        raise ValueError("exceptions must contain at least one exception type")
 
     last_error: Exception | None = None
 
@@ -20,6 +22,5 @@ def retry(
         except exceptions as exc:
             last_error = exc
 
-    if last_error is None:
-        raise RuntimeError("retry failed without capturing an exception")
+    assert last_error is not None
     raise last_error

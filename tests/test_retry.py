@@ -1,3 +1,5 @@
+import pytest
+
 from src.retry import retry
 
 
@@ -14,3 +16,8 @@ def test_retry_retries_until_operation_succeeds():
 
     assert result == "ok"
     assert attempts["count"] == 3
+
+
+def test_retry_raises_for_empty_exceptions_tuple():
+    with pytest.raises(ValueError, match="exceptions must contain at least one exception type"):
+        retry(lambda: "ok", exceptions=())
