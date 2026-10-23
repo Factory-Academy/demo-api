@@ -2,7 +2,8 @@ from datetime import datetime
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db: object) -> None:
+        """Initialize the service with a database-like backend."""
         self.db = db
 
     def calculate_priority(self, item: dict) -> str:
