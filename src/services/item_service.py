@@ -7,6 +7,22 @@ class ItemService:
         self.db = db
 
     def calculate_priority(self, item: dict) -> str:
+        """Calculate priority level for an item based on urgency, criticality, and age.
+
+        Assigns a priority level (critical, high, medium, low) by computing a score
+        from urgency, critical flag, and age in days.
+
+        Example:
+            >>> service = ItemService(db)
+            >>> item = {
+            ...     "created_at": datetime.utcnow(),
+            ...     "urgency": 5,
+            ...     "is_critical": True
+            ... }
+            >>> priority = service.calculate_priority(item)
+            >>> priority
+            'critical'
+        """
         age_days = (datetime.utcnow() - item["created_at"]).days
         base_score = item.get("urgency", 0) * 10
 
