@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 from src.error_handling import get_resource_by_id
+from src.events import ItemCreated, ItemDeleted, ItemUpdated, get_event_bus
 from src.models.item import Item, ItemCreate, ItemUpdate
 
 router = APIRouter()
@@ -32,6 +33,13 @@ async def create_item(item: ItemCreate):
     }
     items_db.append(db_item)
     next_id += 1
+    get_event_bus().publish(
+        ItemCreated(
+            item_id=db_item["id"],
+            name=db_item["name"],
+            status=db_item["status"],
+        )
+    )
     return db_item
 
 
@@ -42,8 +50,16 @@ async def update_item(item_id: int, item: ItemUpdate):
     for i, existing in enumerate(items_db):
         if existing["id"] == item_id:
             update_data = item.model_dump(exclude_unset=True)
+            changed_fields = tuple(update_data.keys())
             update_data["updated_at"] = datetime.utcnow()
             items_db[i] = {**existing, **update_data}
+            get_event_bus().publish(
+                ItemUpdated(
+                    item_id=item_id,
+                    changed_fields=changed_fields,
+                    status=items_db[i].get("status"),
+                )
+            )
             return items_db[i]
     raise HTTPException(status_code=404, detail="Item not found")
 
@@ -53,5 +69,6 @@ async def delete_item(item_id: int):
     for i, item in enumerate(items_db):
         if item["id"] == item_id:
             items_db.pop(i)
+            get_event_bus().publish(ItemDeleted(item_id=item_id))
             return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Item not found")
