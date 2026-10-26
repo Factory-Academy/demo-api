@@ -11,6 +11,8 @@ def paginate(
     max_limit: int = 1000,
 ) -> Sequence[T]:
     """Paginate a sequence of items using offset and limit."""
+    if max_limit <= 0:
+        raise ValueError("Max limit must be a positive integer")
     if offset < 0:
         raise ValueError("Offset cannot be negative")
     if limit <= 0:

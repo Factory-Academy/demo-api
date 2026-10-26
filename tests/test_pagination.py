@@ -1,3 +1,5 @@
+import pytest
+
 from src.utils.pagination import paginate
 
 
@@ -7,3 +9,10 @@ def test_paginate_returns_exactly_limit_items():
     result = paginate(items, offset=2, limit=3)
 
     assert result == [2, 3, 4]
+
+
+def test_paginate_rejects_non_positive_max_limit():
+    items = list(range(10))
+
+    with pytest.raises(ValueError, match="Max limit must be a positive integer"):
+        paginate(items, limit=1, max_limit=0)
