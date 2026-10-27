@@ -102,8 +102,8 @@ long-run average to `refill_rate`.
 
 ## Layout
 
-- `validation.py` — numeric guardrails (`finite`, positive, in-range) shared by
-  both classes, plus `TOKEN_EPSILON`.
+- `validation.py` — input guardrails (`finite`, positive, in-range, hashable
+  key) shared by both classes, plus `TOKEN_EPSILON`.
 - `errors.py` — the `RateLimitExceeded` exception.
 - `bucket.py` — the single-bucket `TokenBucket`.
 - `limiter.py` — the keyed `RateLimiter`.
@@ -144,8 +144,17 @@ if limiter.allow(user_id):      # True/False
 
 limiter.check(user_id)          # raises RateLimitExceeded (with .key set)
 limiter.tokens_remaining(user_id)
-limiter.reset(user_id)          # or reset() to drop every bucket
+limiter.retry_after(user_id)    # seconds until allowed, or None if impossible
+limiter.active_keys()           # frozenset snapshot of live keys
+limiter.reset(user_id)          # drop one key's bucket
+limiter.reset()                 # or reset_all() to drop every bucket
 ```
+
+Keys may be any hashable identifier. `None` is an ordinary key, not the
+"reset everything" signal: `reset(None)` drops only the `None` bucket, while
+`reset()` (no argument) or `reset_all()` drops them all. An unhashable key
+(list, dict, set) is rejected with a `TypeError` naming the argument rather
+than failing deep inside the registry.
 
 ## Guarantees and edge cases
 
@@ -159,6 +168,11 @@ limiter.reset(user_id)          # or reset() to drop every bucket
 - **Monotonic-safe** — a clock that steps backwards never adds tokens.
 - **Unsatisfiable requests** — asking for more than `capacity`, or for a
   drained bucket with `refill_rate == 0`, reports `retry_after=None`.
+- **`None` is a real key** — the keyed limiter uses a private sentinel for
+  "reset everything", so a caller that keys by `None` can reset just that
+  bucket instead of unintentionally clearing all of them.
+- **Hashable keys only** — an unhashable key raises `TypeError` at the call
+  site, naming the argument, instead of failing opaquely inside the registry.
 
 ## How it's wired into the app
 

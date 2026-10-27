@@ -12,8 +12,8 @@ allows short bursts up to ``capacity`` while enforcing a steady long-run rate.
 
 The package is split into focused modules:
 
-- :mod:`~src.utils.rate_limiter.validation` -- numeric guardrails (finite,
-  positive, in-range) shared by both classes.
+- :mod:`~src.utils.rate_limiter.validation` -- input guardrails (finite,
+  positive, in-range, hashable key) shared by both classes.
 - :mod:`~src.utils.rate_limiter.errors` -- the :class:`RateLimitExceeded`
   exception.
 - :mod:`~src.utils.rate_limiter.bucket` -- the single-bucket :class:`TokenBucket`.

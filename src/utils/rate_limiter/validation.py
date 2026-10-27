@@ -1,9 +1,9 @@
 """
-Numeric guardrails shared across the token-bucket rate limiter.
+Input guardrails shared across the token-bucket rate limiter.
 
 Centralizing these checks keeps a single, well-tested definition of "a valid
-rate" and "a valid token count" in one place instead of scattering the same
-comparisons through every method.
+rate", "a valid token count", and "a valid key" in one place instead of
+scattering the same comparisons through every method.
 
 Non-finite values (``NaN`` and ``+/-inf``) are rejected up front. They are the
 dangerous case: ``NaN`` compares ``False`` against every threshold, so a raw
@@ -66,3 +66,18 @@ def clamp_initial_tokens(initial_tokens: Number, capacity: float) -> float:
     if result > capacity:
         return capacity
     return result
+
+
+def validate_key(key: object) -> object:
+    """Return ``key`` unchanged, or raise ``TypeError`` if it is unhashable.
+
+    Per-key buckets live in a ``dict`` keyed by the caller identifier. An
+    unhashable key (a ``list``, ``dict``, or ``set``) would otherwise fail deep
+    inside the registry with a bare ``unhashable type`` message that never names
+    the offending argument. Checking here reports the problem at the call site.
+    """
+    try:
+        hash(key)
+    except TypeError:
+        raise TypeError(f"rate limiter key must be hashable, got {key!r}")
+    return key

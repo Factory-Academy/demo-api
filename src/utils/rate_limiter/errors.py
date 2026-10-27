@@ -24,3 +24,11 @@ class RateLimitExceeded(Exception):
         super().__init__(message)
         self.retry_after = retry_after
         self.key = key
+
+    def __repr__(self) -> str:
+        # The default Exception repr drops retry_after and key, the two fields a
+        # caller actually logs or acts on; spell them out explicitly.
+        return (
+            f"{type(self).__name__}({str(self)!r}, "
+            f"retry_after={self.retry_after!r}, key={self.key!r})"
+        )

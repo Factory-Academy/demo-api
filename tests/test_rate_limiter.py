@@ -12,6 +12,7 @@ from src.utils.rate_limiter import (
 from src.utils.rate_limiter.validation import (
     clamp_initial_tokens,
     validate_capacity,
+    validate_key,
     validate_refill_rate,
     validate_token_request,
 )
@@ -305,9 +306,75 @@ def test_limiter_reset_all_keys():
     assert limiter.tokens_remaining("b") == 1
 
 
+def test_limiter_reset_all_method_matches_argumentless_reset():
+    limiter = RateLimiter(capacity=1, refill_rate=0)
+    limiter.allow("a")
+    limiter.allow("b")
+    limiter.reset_all()
+    assert limiter.active_keys() == frozenset()
+    assert limiter.tokens_remaining("a") == 1
+
+
 def test_limiter_reset_unknown_key_is_noop():
     limiter = RateLimiter(capacity=1, refill_rate=0)
     limiter.reset("never-seen")  # must not raise
+
+
+def test_none_is_an_ordinary_key_not_reset_all():
+    # None is a legal key; resetting it must drop only its bucket and leave
+    # every other key untouched. Regression guard against None doubling as the
+    # "reset everything" sentinel.
+    limiter = RateLimiter(capacity=1, refill_rate=0)
+    assert limiter.allow(None) is True
+    assert limiter.allow("other") is True
+    assert limiter.allow(None) is False  # None's bucket is drained
+
+    limiter.reset(None)
+
+    assert limiter.allow(None) is True  # None was refilled
+    assert limiter.active_keys() == frozenset({None, "other"})
+    # "other" was drained before and never reset, so it is still limited.
+    assert limiter.allow("other") is False
+
+
+def test_active_keys_is_an_immutable_snapshot():
+    limiter = RateLimiter(capacity=1, refill_rate=0)
+    limiter.allow("a")
+    limiter.allow("b")
+    keys = limiter.active_keys()
+    assert keys == frozenset({"a", "b"})
+    assert isinstance(keys, frozenset)
+    # Mutating the registry afterwards does not change the returned snapshot.
+    limiter.reset_all()
+    assert keys == frozenset({"a", "b"})
+
+
+def test_limiter_retry_after_tracks_per_key_refill():
+    clock = FakeClock()
+    limiter = RateLimiter(capacity=2, refill_rate=2, time_func=clock)
+    assert limiter.retry_after("u1") == 0.0  # full bucket, available now
+    limiter.check("u1", 2)  # drain u1
+    # Need 1 token at 2 tokens/sec -> 0.5s; a different key is unaffected.
+    assert limiter.retry_after("u1") == pytest.approx(0.5)
+    assert limiter.retry_after("u2") == 0.0
+
+
+def test_limiter_retry_after_none_when_unsatisfiable():
+    limiter = RateLimiter(capacity=5, refill_rate=0)
+    assert limiter.retry_after("k", 6) is None  # more than capacity
+
+
+@pytest.mark.parametrize("bad_key", [["a"], {"a": 1}, {"a"}])
+def test_limiter_rejects_unhashable_keys(bad_key):
+    limiter = RateLimiter(capacity=1, refill_rate=0)
+    with pytest.raises(TypeError, match="hashable"):
+        limiter.allow(bad_key)
+    with pytest.raises(TypeError, match="hashable"):
+        limiter.check(bad_key)
+    with pytest.raises(TypeError, match="hashable"):
+        limiter.tokens_remaining(bad_key)
+    with pytest.raises(TypeError, match="hashable"):
+        limiter.reset(bad_key)
 
 
 def test_limiter_validates_config():
@@ -346,3 +413,27 @@ def test_clamp_initial_tokens_bounds():
     assert clamp_initial_tokens(-1, 10) == 0.0
     assert clamp_initial_tokens(5, 10) == 5.0
     assert clamp_initial_tokens(50, 10) == 10.0
+
+
+def test_validate_key_accepts_hashable_and_returns_it():
+    for key in ("user-7", 42, None, ("a", 1), frozenset({1})):
+        assert validate_key(key) is key
+
+
+@pytest.mark.parametrize("bad_key", [["a"], {"a": 1}, {"a"}])
+def test_validate_key_rejects_unhashable(bad_key):
+    with pytest.raises(TypeError, match="hashable"):
+        validate_key(bad_key)
+
+
+# ---------------------------------------------------------------------------
+# RateLimitExceeded
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limit_exceeded_repr_surfaces_retry_after_and_key():
+    exc = RateLimitExceeded("too fast", retry_after=0.5, key="acct-7")
+    text = repr(exc)
+    assert "retry_after=0.5" in text
+    assert "key='acct-7'" in text
+    assert "too fast" in text

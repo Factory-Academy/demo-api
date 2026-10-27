@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import threading
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, FrozenSet, Optional
 
 from src.utils.rate_limiter.bucket import TokenBucket
 from src.utils.rate_limiter.errors import RateLimitExceeded
 from src.utils.rate_limiter.validation import (
     Number,
     validate_capacity,
+    validate_key,
     validate_refill_rate,
 )
+
+# Distinct sentinel for "reset every bucket". ``None`` cannot double as this
+# marker because ``None`` is itself a legal key, so a caller that keys by
+# ``None`` must still be able to reset just that one bucket.
+_ALL_KEYS = object()
 
 
 class RateLimiter:
@@ -43,6 +49,7 @@ class RateLimiter:
 
     def _bucket_for(self, key: object) -> TokenBucket:
         """Return the bucket for ``key``, creating it on first use."""
+        validate_key(key)
         with self._lock:
             bucket = self._buckets.get(key)
             if bucket is None:
@@ -93,16 +100,52 @@ class RateLimiter:
         """Current tokens available for ``key`` (creates the bucket if new)."""
         return self._bucket_for(key).available_tokens()
 
-    def reset(self, key: object = None) -> None:
+    def retry_after(self, key: object, tokens: Number = 1) -> Optional[float]:
         """
-        Reset one key's bucket or clear every bucket.
+        Seconds until ``tokens`` are available for ``key`` without consuming.
 
         Args:
-            key: The key to refill. When ``None``, all buckets are dropped so
-                every key starts fresh (full) on next use.
+            key: Identifier for the caller.
+            tokens: Tokens to wait for. Must be a finite number > 0.
+
+        Returns:
+            0.0 if ``tokens`` are available now, a positive number of seconds
+            otherwise, or ``None`` if the request can never be satisfied
+            (exceeds capacity, or a drained non-refilling bucket).
+
+        Raises:
+            ValueError: If ``tokens`` <= 0 or is not finite.
+        """
+        return self._bucket_for(key).time_until_available(tokens)
+
+    def active_keys(self) -> FrozenSet[object]:
+        """Snapshot of keys that currently hold a live bucket.
+
+        Returned as an immutable copy so iterating it never races with
+        concurrent ``allow``/``reset`` calls mutating the registry.
         """
         with self._lock:
-            if key is None:
+            return frozenset(self._buckets)
+
+    def reset(self, key: object = _ALL_KEYS) -> None:
+        """
+        Reset one key's bucket, or every bucket when called with no argument.
+
+        Args:
+            key: The key to drop so it starts fresh (full) on next use. Omit the
+                argument to drop every bucket. ``None`` is treated as an ordinary
+                key, not a "reset everything" signal, so a caller keyed by
+                ``None`` resets only that bucket.
+        """
+        if key is _ALL_KEYS:
+            with self._lock:
                 self._buckets.clear()
-            else:
-                self._buckets.pop(key, None)
+            return
+        validate_key(key)
+        with self._lock:
+            self._buckets.pop(key, None)
+
+    def reset_all(self) -> None:
+        """Drop every bucket so all keys start fresh (full) on next use."""
+        with self._lock:
+            self._buckets.clear()
