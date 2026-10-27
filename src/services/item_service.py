@@ -1,4 +1,4 @@
-from datetime import datetime
+from src.utils.records import utcnow, mark_updated
 
 
 class ItemService:
@@ -15,7 +15,7 @@ class ItemService:
         Example:
             >>> service = ItemService(db)
             >>> item = {
-            ...     "created_at": datetime.utcnow(),
+            ...     "created_at": utcnow(),
             ...     "urgency": 5,
             ...     "is_critical": True
             ... }
@@ -23,7 +23,7 @@ class ItemService:
             >>> priority
             'critical'
         """
-        age_days = (datetime.utcnow() - item["created_at"]).days
+        age_days = (utcnow() - item["created_at"]).days
         base_score = item.get("urgency", 0) * 10
 
         if item.get("is_critical"):
@@ -49,7 +49,7 @@ class ItemService:
         if data.get("due_date"):
             try:
                 due = datetime.fromisoformat(data["due_date"])
-                if due < datetime.utcnow():
+                if due < utcnow():
                     errors.append("Due date cannot be in the past")
             except ValueError:
                 errors.append("Invalid date format")
@@ -69,7 +69,7 @@ class ItemService:
                 continue
             record["status"] = new_status
             record["updated_by"] = updated_by
-            record["updated_at"] = datetime.utcnow()
+            mark_updated(record)
             self.db.save(record)
             results["updated"].append(id)
         return results

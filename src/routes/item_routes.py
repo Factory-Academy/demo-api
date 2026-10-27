@@ -3,6 +3,7 @@ from typing import List
 from src.error_handling import get_resource_by_id
 from src.events import ItemCreated, ItemDeleted, ItemUpdated, get_event_bus
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.records import prepare_new_record, mark_updated
 
 router = APIRouter()
 
@@ -23,14 +24,7 @@ async def get_item(item_id: int):
 @router.post("/", response_model=Item, status_code=201)
 async def create_item(item: ItemCreate):
     global next_id
-    from datetime import datetime
-
-    db_item = {
-        **item.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
+    db_item = prepare_new_record(item.model_dump(), next_id)
     items_db.append(db_item)
     next_id += 1
     get_event_bus().publish(
@@ -45,13 +39,11 @@ async def create_item(item: ItemCreate):
 
 @router.put("/{item_id}", response_model=Item)
 async def update_item(item_id: int, item: ItemUpdate):
-    from datetime import datetime
-
     for i, existing in enumerate(items_db):
         if existing["id"] == item_id:
             update_data = item.model_dump(exclude_unset=True)
             changed_fields = tuple(update_data.keys())
-            update_data["updated_at"] = datetime.utcnow()
+            mark_updated(update_data)
             items_db[i] = {**existing, **update_data}
             get_event_bus().publish(
                 ItemUpdated(

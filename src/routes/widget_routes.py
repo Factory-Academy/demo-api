@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from typing import List
 from src.error_handling import get_resource_by_id
 from src.models.widget import Widget, WidgetCreate
+from src.utils.records import prepare_new_record
 
 router = APIRouter()
 
@@ -22,14 +23,7 @@ async def get_widget(widget_id: int):
 @router.post("/", response_model=Widget, status_code=201)
 async def create_widget(widget: WidgetCreate):
     global next_id
-    from datetime import datetime
-
-    db_widget = {
-        **widget.model_dump(),
-        "id": next_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
+    db_widget = prepare_new_record(widget.model_dump(), next_id)
     widgets_db.append(db_widget)
     next_id += 1
     return db_widget
