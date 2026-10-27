@@ -5,6 +5,32 @@ A small, dependency-free publish/subscribe layer for decoupling side effects
 Everything runs synchronously in the current process; there is no broker,
 queue, or network hop.
 
+# Retry Utility (`src/retry.py`)
+
+A lightweight, generic retry helper for wrapping fallible operations.
+
+## Usage
+
+```python
+from src.retry import retry
+
+def unstable_call():
+    # ... might raise ConnectionError
+    return "success"
+
+result = retry(unstable_call, attempts=3, exceptions=(ConnectionError,))
+```
+
+## Features
+
+- **Generic** — Works with any callable returning any type.
+- **Customizable** — Specify the number of attempts and which exceptions to catch.
+- **Strict** — Validates that `attempts >= 1` and at least one exception type is provided.
+
+## Tests
+
+- `tests/test_retry.py` — unit tests for success, failure, and validation logic.
+
 ## Concepts
 
 - **Event** — an immutable (`frozen`) dataclass describing something that
