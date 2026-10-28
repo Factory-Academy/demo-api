@@ -72,6 +72,13 @@ def charge_card(amount): ...
 - **Open circuit mid-retry.** If a failure trips the breaker between attempts,
   the next attempt is rejected with `CircuitOpenError` before the function
   runs, so we stop hammering a dead dependency immediately.
+- **Non-retryable error during a half-open probe.** A half-open `acquire()`
+  reserves one of the limited trial slots. If the probing call raises a
+  *non-retryable* error (e.g. a 4xx mapped to `NotifierRejectedError`), that
+  says nothing about availability, so `retry_call` returns the slot via
+  `CircuitBreaker.release()` instead of recording a success or failure.
+  Without this the slot would leak and a breaker with `half_open_max_calls=1`
+  could get stuck in half-open, rejecting every genuine probe forever.
 - **Total time budget.** `RetryPolicy.deadline` caps the wall-clock time spent
   across all attempts; the final backoff is clamped so a retry never overruns
   the budget.
@@ -99,12 +106,14 @@ behaves exactly as before.
 ## Tests
 
 - `tests/utils/test_resilience.py` — backoff growth/cap/jitter bounds/validation;
-  breaker open/half-open/close/reopen/reset and admission limits; retry success,
-  recovery, exhaustion, non-retryable propagation, `give_up_on` precedence,
-  deadline budget, breaker integration, and the decorator.
+  breaker open/half-open/close/reopen/reset, admission limits, and half-open slot
+  release; retry success, recovery, exhaustion, non-retryable propagation (and
+  slot release during a half-open probe), `give_up_on` precedence, deadline
+  budget, breaker integration, and the decorator.
 - `tests/test_status_notifier.py` — client behaviour over `httpx.MockTransport`:
   success, 5xx retry-then-succeed, persistent 5xx, 4xx no-retry, timeout retry,
-  circuit open drops calls, and recovery after the timeout.
+  circuit open drops calls, recovery after the timeout, and a 4xx rejection
+  during a half-open probe not leaking the trial slot.
 - `tests/services/test_item_service_notify.py` — the service wiring, including
   skipped/missing records and dropped deliveries.
 

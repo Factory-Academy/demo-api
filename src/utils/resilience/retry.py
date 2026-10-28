@@ -74,7 +74,9 @@ def retry_call(
       at which point :class:`RetryError` is raised with the last exception
       attached.
     * A non-retryable exception propagates immediately and does **not** count
-      against the breaker, which is reserved for availability failures.
+      against the breaker, which is reserved for availability failures. If it
+      was raised during a half-open probe, the reserved trial slot is released
+      so a genuine probe can still run.
     * If the breaker is open, the attempt is rejected before ``func`` runs and
       :class:`CircuitOpenError` propagates to the caller.
 
@@ -94,6 +96,10 @@ def retry_call(
             result = func(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 - we classify below
             if not policy.is_retryable(exc):
+                # Not an availability failure: return any reserved half-open
+                # trial slot so a genuine probe can still run.
+                if breaker is not None:
+                    breaker.release()
                 raise
             last_exc = exc
             if breaker is not None:

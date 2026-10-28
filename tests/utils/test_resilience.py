@@ -159,6 +159,35 @@ def test_breaker_half_open_limits_trial_calls():
         breaker.acquire()
 
 
+def test_breaker_release_frees_half_open_slot():
+    clock = FakeClock()
+    breaker = make_breaker(clock, failure_threshold=1, half_open_max_calls=1)
+    breaker.acquire()
+    breaker.record_failure()
+    clock.advance(5.0)
+    assert breaker.state is CircuitState.HALF_OPEN
+
+    breaker.acquire()  # reserve the single trial slot
+    breaker.release()  # hand it back without an outcome
+    # The slot is free again, so a genuine probe can still be admitted and the
+    # breaker has not been forced open or closed.
+    breaker.acquire()
+    assert breaker.state is CircuitState.HALF_OPEN
+
+
+def test_breaker_release_is_noop_outside_half_open():
+    clock = FakeClock()
+    breaker = make_breaker(clock, failure_threshold=3)
+    breaker.acquire()
+    breaker.record_failure()
+    assert breaker.state is CircuitState.CLOSED
+    assert breaker.failure_count == 1
+
+    breaker.release()  # no reserved slot while closed
+    assert breaker.state is CircuitState.CLOSED
+    assert breaker.failure_count == 1
+
+
 def test_breaker_half_open_success_closes():
     clock = FakeClock()
     breaker = make_breaker(clock, failure_threshold=1)
@@ -353,6 +382,42 @@ def test_retry_does_not_count_non_retryable_against_breaker():
         retry_call(client_error, policy=policy, breaker=breaker, sleep=RecordingSleep())
     assert breaker.state is CircuitState.CLOSED
     assert breaker.failure_count == 0
+
+
+def test_retry_releases_half_open_slot_on_non_retryable():
+    clock = FakeClock()
+    breaker = CircuitBreaker(
+        "svc",
+        CircuitBreakerConfig(
+            failure_threshold=1, recovery_timeout=5.0, half_open_max_calls=1
+        ),
+        clock=clock,
+    )
+    # Trip the breaker, then let the recovery window move it to half-open.
+    breaker.acquire()
+    breaker.record_failure()
+    assert breaker.state is CircuitState.OPEN
+    clock.advance(5.0)
+    assert breaker.state is CircuitState.HALF_OPEN
+
+    def client_error():
+        raise ValueError("bad request")
+
+    policy = RetryPolicy(max_attempts=3, retry_on=(TimeoutError,))
+    with pytest.raises(ValueError):
+        retry_call(
+            client_error,
+            policy=policy,
+            breaker=breaker,
+            sleep=RecordingSleep(),
+            clock=clock,
+        )
+
+    # The non-retryable probe neither opened nor closed the breaker, and it
+    # returned its trial slot, so a genuine probe can still be admitted. Before
+    # the fix the leaked slot left the breaker stuck rejecting every probe.
+    assert breaker.state is CircuitState.HALF_OPEN
+    breaker.acquire()  # would raise CircuitOpenError if the slot had leaked
 
 
 # --------------------------------------------------------------------------- #

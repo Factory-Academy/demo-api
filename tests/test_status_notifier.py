@@ -158,6 +158,36 @@ def test_circuit_recovers_after_timeout():
     assert breaker.state is CircuitState.CLOSED
 
 
+def test_rejected_response_during_half_open_frees_the_probe_slot():
+    clock = FakeClock()
+    breaker = CircuitBreaker(
+        "status-notifier",
+        CircuitBreakerConfig(
+            failure_threshold=1, recovery_timeout=10.0, half_open_max_calls=1
+        ),
+        clock=clock,
+    )
+    client, handler = make_client([500, 404, 200], breaker=breaker, max_attempts=1)
+
+    # A 5xx trips the breaker.
+    assert notify(client) is False
+    assert breaker.state is CircuitState.OPEN
+
+    clock.advance(10.0)  # recovery window elapses -> half-open
+    assert breaker.state is CircuitState.HALF_OPEN
+
+    # A 4xx is a permanent rejection, not an availability failure, so it must
+    # not consume the single half-open trial slot.
+    assert notify(client) is False
+    assert breaker.state is CircuitState.HALF_OPEN
+
+    # The next genuine probe succeeds and closes the breaker; it would have been
+    # dropped if the rejection had leaked the trial slot.
+    assert notify(client) is True
+    assert breaker.state is CircuitState.CLOSED
+    assert handler.call_count == 3
+
+
 def test_config_validation():
     with pytest.raises(ValueError):
         NotifierConfig(base_url="")

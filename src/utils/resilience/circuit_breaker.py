@@ -98,8 +98,8 @@ class CircuitBreaker:
 
         Raises :class:`CircuitOpenError` if the call should not proceed. When
         the breaker is half-open this reserves one of the limited trial slots,
-        so every successful ``acquire`` must be paired with a later
-        :meth:`record_success` or :meth:`record_failure`.
+        so every successful ``acquire`` must be settled by a later
+        :meth:`record_success`, :meth:`record_failure`, or :meth:`release`.
         """
         with self._lock:
             self._refresh()
@@ -126,6 +126,20 @@ class CircuitBreaker:
             self._failure_count += 1
             if self._failure_count >= self._config.failure_threshold:
                 self._open()
+
+    def release(self) -> None:
+        """Return a half-open trial slot without recording an outcome.
+
+        Used to settle an :meth:`acquire` whose call neither succeeded nor
+        failed in a way that reflects the dependency's health (for example a
+        non-retryable client error, which says nothing about availability).
+        Without this, the reserved slot would leak and a half-open breaker
+        could be stuck rejecting every genuine probe. Outside the half-open
+        state there is no reserved slot, so this is a no-op.
+        """
+        with self._lock:
+            if self._state is CircuitState.HALF_OPEN and self._half_open_calls > 0:
+                self._half_open_calls -= 1
 
     def reset(self) -> None:
         """Force the breaker back to the healthy CLOSED state."""
