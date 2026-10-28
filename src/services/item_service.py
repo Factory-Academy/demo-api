@@ -3,8 +3,11 @@ from typing import Optional
 
 
 class ItemService:
-    def __init__(self, db):
+    def __init__(self, db, notifier=None):
         self.db = db
+        # Optional StatusNotifierClient; when set, status changes are pushed to
+        # the external notifier on a best-effort basis.
+        self.notifier = notifier
 
     def calculate_priority(self, item: dict) -> str:
         age_days = (datetime.utcnow() - item["created_at"]).days
@@ -42,7 +45,7 @@ class ItemService:
     def batch_update_status(
         self, ids: list, new_status: str, updated_by: str
     ) -> dict:
-        results = {"updated": [], "failed": [], "skipped": []}
+        results = {"updated": [], "failed": [], "skipped": [], "notified": []}
         for id in ids:
             record = self.db.get(id)
             if record is None:
@@ -51,9 +54,20 @@ class ItemService:
             if record.get("status") == new_status:
                 results["skipped"].append({"id": id, "reason": "already in state"})
                 continue
+            old_status = record.get("status")
             record["status"] = new_status
             record["updated_by"] = updated_by
             record["updated_at"] = datetime.utcnow()
             self.db.save(record)
             results["updated"].append(id)
+
+            if self.notifier is not None:
+                delivered = self.notifier.notify_status_change(
+                    item_id=id,
+                    old_status=old_status,
+                    new_status=new_status,
+                    updated_by=updated_by,
+                )
+                if delivered:
+                    results["notified"].append(id)
         return results
