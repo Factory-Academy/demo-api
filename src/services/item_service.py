@@ -27,7 +27,7 @@ class ItemService:
             return "medium"
         return "low"
 
-    def validate_item(self, data: dict) -> tuple:
+    def validate_item(self, data: dict, allow_past_dates: bool = False) -> tuple:
         errors = []
         if not data.get("name") or len(data["name"].strip()) == 0:
             errors.append("Name is required")
@@ -36,7 +36,7 @@ class ItemService:
         if data.get("due_date"):
             try:
                 due = datetime.fromisoformat(data["due_date"])
-                if due < datetime.utcnow():
+                if not allow_past_dates and due < datetime.utcnow():
                     errors.append("Due date cannot be in the past")
             except ValueError:
                 errors.append("Invalid date format")
