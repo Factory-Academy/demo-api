@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
 from src.utils.shortcuts import find_or_404, find_index_or_404
