@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from src.utils.exceptions import ResourceNotFoundError, ValidationError
 
 
 class ItemService:
@@ -47,27 +48,31 @@ class ItemService:
     ) -> dict:
         results = {"updated": [], "failed": [], "skipped": [], "notified": []}
         for id in ids:
-            record = self.db.get(id)
-            if record is None:
-                results["failed"].append({"id": id, "reason": "not found"})
-                continue
-            if record.get("status") == new_status:
-                results["skipped"].append({"id": id, "reason": "already in state"})
-                continue
-            old_status = record.get("status")
-            record["status"] = new_status
-            record["updated_by"] = updated_by
-            record["updated_at"] = datetime.utcnow()
-            self.db.save(record)
-            results["updated"].append(id)
+            try:
+                record = self.db.get(id)
+                if record is None:
+                    raise ResourceNotFoundError("Item", id)
+                
+                if record.get("status") == new_status:
+                    results["skipped"].append({"id": id, "reason": "already in state"})
+                    continue
+                
+                old_status = record.get("status")
+                record["status"] = new_status
+                record["updated_by"] = updated_by
+                record["updated_at"] = datetime.utcnow()
+                self.db.save(record)
+                results["updated"].append(id)
 
-            if self.notifier is not None:
-                delivered = self.notifier.notify_status_change(
-                    item_id=id,
-                    old_status=old_status,
-                    new_status=new_status,
-                    updated_by=updated_by,
-                )
-                if delivered:
-                    results["notified"].append(id)
+                if self.notifier is not None:
+                    delivered = self.notifier.notify_status_change(
+                        item_id=id,
+                        old_status=old_status,
+                        new_status=new_status,
+                        updated_by=updated_by,
+                    )
+                    if delivered:
+                        results["notified"].append(id)
+            except ResourceNotFoundError as exc:
+                results["failed"].append({"id": id, "reason": str(exc)})
         return results
