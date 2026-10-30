@@ -1,31 +1,31 @@
 from datetime import datetime
 from typing import Optional
 
+from src.services.priority import (
+    PriorityAssessment,
+    PriorityInput,
+    PriorityStrategy,
+    create_priority_strategy,
+)
+
 
 class ItemService:
-    def __init__(self, db, notifier=None):
+    def __init__(self, db, notifier=None, priority_strategy: Optional[PriorityStrategy] = None):
         self.db = db
         # Optional StatusNotifierClient; when set, status changes are pushed to
         # the external notifier on a best-effort basis.
         self.notifier = notifier
+        # Pluggable priority heuristic. Defaults to the weighted strategy, whose
+        # defaults reproduce the original inline scoring, so existing callers
+        # see no behaviour change.
+        self.priority_strategy = priority_strategy or create_priority_strategy("weighted")
 
     def calculate_priority(self, item: dict) -> str:
-        age_days = (datetime.utcnow() - item["created_at"]).days
-        base_score = item.get("urgency", 0) * 10
+        return self.assess_priority(item).level.value
 
-        if item.get("is_critical"):
-            base_score += 50
-
-        if age_days > 30:
-            base_score += age_days * 0.5
-
-        if base_score >= 80:
-            return "critical"
-        elif base_score >= 50:
-            return "high"
-        elif base_score >= 20:
-            return "medium"
-        return "low"
+    def assess_priority(self, item: dict) -> PriorityAssessment:
+        """Return the full assessment (level, score, reason) for an item."""
+        return self.priority_strategy.assess(PriorityInput.from_item(item))
 
     def validate_item(self, data: dict, allow_past_dates: bool = False) -> tuple:
         errors = []
