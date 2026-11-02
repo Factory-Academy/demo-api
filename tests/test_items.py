@@ -47,3 +47,11 @@ def test_list_items_supports_offset_limit_pagination():
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]["name"] == "Item 2"
+
+
+def test_list_items_rejects_limit_above_max_page_limit():
+    response = client.get("/items/?limit=101")
+
+    assert response.status_code == 422
+    errors = response.json()["detail"]
+    assert any("less than or equal to 100" in error["msg"] for error in errors)

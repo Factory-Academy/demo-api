@@ -1,6 +1,6 @@
 import pytest
 
-from src.utils.pagination import paginate_offset_limit
+from src.utils.pagination import MAX_PAGE_LIMIT, paginate_offset_limit
 
 
 def test_paginate_offset_limit_returns_requested_slice():
@@ -24,6 +24,7 @@ def test_paginate_offset_limit_returns_empty_when_offset_is_past_end():
     [
         (-1, 1, "offset must be >= 0"),
         (0, 0, "limit must be >= 1"),
+        (0, MAX_PAGE_LIMIT + 1, f"limit must be <= {MAX_PAGE_LIMIT}"),
     ],
 )
 def test_paginate_offset_limit_validates_inputs(offset, limit, error_message):
