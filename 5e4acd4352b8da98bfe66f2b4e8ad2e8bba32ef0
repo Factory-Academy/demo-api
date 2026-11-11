@@ -1,0 +1,25 @@
+tests/test_item_service.py
+  62e14f8f1b30d36a 1-5
+src/services/item_service.py
+  62e14f8f1b30d36a 2,6-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.2",
+  "base_commit_sha": "5e4acd4352b8da98bfe66f2b4e8ad2e8bba32ef0",
+  "prompts": {
+    "62e14f8f1b30d36a": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "3d70f48b-9c2c-4261-bec9-61f055d4a947",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "academy-eng-2",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

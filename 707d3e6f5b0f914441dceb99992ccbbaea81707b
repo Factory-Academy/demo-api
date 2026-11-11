@@ -1,0 +1,40 @@
+tests/test_text_utils.py
+  a48c3fb3c37dbee5 3-5
+  df2e3fc293aa6b9c 1-2,6-15
+src/services/text_utils.py
+  a48c3fb3c37dbee5 1-5
+  df2e3fc293aa6b9c 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.2",
+  "base_commit_sha": "707d3e6f5b0f914441dceb99992ccbbaea81707b",
+  "prompts": {
+    "a48c3fb3c37dbee5": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "eecddd9b-fcc5-44a5-b312-0148f238eeb4",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "academy-eng-2",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "df2e3fc293aa6b9c": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "07816168-bcbf-4692-a380-c4b11b3d2bdd",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "academy-eng-2",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 6,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}
