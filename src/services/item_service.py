@@ -10,6 +10,16 @@ from src.services.priority import (
 )
 
 
+def retry(func, attempts: int = 3, exceptions: tuple = (Exception,)):
+    last_error = None
+    for _ in range(attempts):
+        try:
+            return func()
+        except exceptions as error:
+            last_error = error
+    raise last_error
+
+
 class ItemService:
     def __init__(self, db, notifier=None, priority_strategy: Optional[PriorityStrategy] = None):
         self.db = db
