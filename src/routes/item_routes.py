@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from typing import List
 from src.models.item import Item, ItemCreate, ItemUpdate
+from src.utils.pagination import MAX_PAGE_LIMIT, paginate_offset_limit
 from src.utils.shortcuts import find_or_404, find_index_or_404
 
 router = APIRouter()
@@ -10,8 +11,11 @@ next_id = 1
 
 
 @router.get("/", response_model=List[Item])
-async def list_items():
-    return items_db
+async def list_items(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=MAX_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
+):
+    return paginate_offset_limit(items_db, offset=offset, limit=limit)
 
 
 @router.get("/{item_id}", response_model=Item)
